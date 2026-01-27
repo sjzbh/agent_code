@@ -11,7 +11,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # 初始化Gemini Client
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    client = genai.GenerativeModel('gemini-1.5-flash')
+    client = genai.GenerativeModel('gemini-1.5-pro')
 else:
     print("警告: GEMINI_API_KEY 环境变量未设置")
     client = None

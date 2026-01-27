@@ -1,6 +1,7 @@
 import json
 from config import client
 from rich.console import Console
+from utils import clean_json_text
 
 console = Console()
 
@@ -44,7 +45,7 @@ class ProjectManager:
         
         if client:
             response = client.generate_content(prompt)
-            response_text = response.text.strip()
+            response_text = clean_json_text(response.text)
             
             try:
                 # 解析JSON响应
@@ -100,7 +101,7 @@ class ProjectManager:
         
         if client:
             response = client.generate_content(prompt)
-            response_text = response.text.strip()
+            response_text = clean_json_text(response.text)
             
             try:
                 # 解析JSON响应

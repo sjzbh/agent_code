@@ -3,8 +3,8 @@ import sys
 import os
 import tempfile
 import re
-from config import client
-from utils import clean_json_text
+from config import WORKER_CONFIG
+from utils import clean_json_text, call_llm
 from rich.console import Console
 
 console = Console()
@@ -35,12 +35,11 @@ class WorkerAgent:
         
         prompt = f"{system_prompt}\n\n任务描述：{task_description}"
         
-        if client:
-            response = client.generate_content(prompt)
-            # 清洗一下，防止 AI 返回 ```python ... ```
-            return clean_json_text(response.text.strip())
+        if WORKER_CONFIG['client']:
+            raw_response = call_llm(WORKER_CONFIG, prompt)
+            return clean_json_text(raw_response)
         else:
-            return "错误: Gemini客户端未初始化"
+            return "错误: Worker AI 未初始化"
     
     def runner(self, code_or_command):
         """
@@ -108,11 +107,10 @@ class WorkerAgent:
         
         prompt = f"{system_prompt}\n\n任务描述：{task_description}\n\n生成的代码：{code}\n\n错误信息：{error}"
         
-        if client:
-            response = client.generate_content(prompt)
-            return response.text.strip()
+        if WORKER_CONFIG['client']:
+            return call_llm(WORKER_CONFIG, prompt)
         else:
-            return "错误: Gemini客户端未初始化"
+            return "错误: Tech Lead AI 未初始化"
     
     def run(self, task_description):
         """

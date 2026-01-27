@@ -1,7 +1,7 @@
 import json
-from config import client
+from config import PM_CONFIG
 from rich.console import Console
-from utils import clean_json_text
+from utils import clean_json_text, call_llm
 
 console = Console()
 
@@ -43,9 +43,9 @@ class ProjectManager:
         
         console.print("[bold green]ProjectManager正在规划任务...[/bold green]")
         
-        if client:
-            response = client.generate_content(prompt)
-            response_text = clean_json_text(response.text)
+        if PM_CONFIG['client']:
+            response_text = call_llm(PM_CONFIG, prompt)
+            response_text = clean_json_text(response_text)
             
             try:
                 # 解析JSON响应
@@ -71,7 +71,7 @@ class ProjectManager:
                 console.print("[bold red]警告：ProjectManager返回的内容不是有效的JSON[/bold red]")
                 return []
         else:
-            console.print("[bold red]错误：Gemini客户端未初始化[/bold red]")
+            console.print("[bold red]错误：PM AI 未初始化[/bold red]")
             return []
     
     def update_plan(self, feedback):
@@ -99,9 +99,9 @@ class ProjectManager:
         
         console.print("[bold green]ProjectManager正在更新任务计划...[/bold green]")
         
-        if client:
-            response = client.generate_content(prompt)
-            response_text = clean_json_text(response.text)
+        if PM_CONFIG['client']:
+            response_text = call_llm(PM_CONFIG, prompt)
+            response_text = clean_json_text(response_text)
             
             try:
                 # 解析JSON响应
@@ -126,7 +126,7 @@ class ProjectManager:
                 console.print("[bold red]警告：ProjectManager返回的内容不是有效的JSON[/bold red]")
                 return self.task_queue
         else:
-            console.print("[bold red]错误：Gemini客户端未初始化[/bold red]")
+            console.print("[bold red]错误：PM AI 未初始化[/bold red]")
             return self.task_queue
     
     def get_next_task(self):

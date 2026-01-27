@@ -1,5 +1,6 @@
 import json
-from config import client
+from config import AUDITOR_CONFIG
+from utils import call_llm, clean_json_text
 from rich.console import Console
 
 console = Console()
@@ -40,9 +41,9 @@ class AuditorAgent:
         
         console.print("[bold purple]Auditor正在分析执行结果...[/bold purple]")
         
-        if client:
-            response = client.generate_content(prompt)
-            response_text = response.text.strip()
+        if AUDITOR_CONFIG['client']:
+            response_text = call_llm(AUDITOR_CONFIG, prompt)
+            response_text = clean_json_text(response_text)
             
             try:
                 # 解析JSON响应
@@ -61,5 +62,5 @@ class AuditorAgent:
                 console.print("[bold red]警告：Auditor返回的内容不是有效的JSON[/bold red]")
                 return {"status": "FAIL", "feedback": "审计过程中出现错误，返回内容不是有效的JSON"}
         else:
-            console.print("[bold red]错误：Gemini客户端未初始化[/bold red]")
-            return {"status": "FAIL", "feedback": "Gemini客户端未初始化，无法进行审计"}
+            console.print("[bold red]错误：Auditor AI 未初始化[/bold red]")
+            return {"status": "FAIL", "feedback": "Auditor AI 未初始化，无法进行审计"}

@@ -103,6 +103,8 @@ class WorkerAgent:
         3. 提供清晰、具体的修复建议
         4. 确保修复后的代码能够正确执行
         5. 只返回修复建议，不要包含任何解释或额外内容
+        6. 如果错误是缺少Python库，请生成相应的pip安装命令，格式为：pip install 库名
+        7. 如果需要安装多个库，请在一行中用空格分隔，例如：pip install requests pandas numpy
         """
         
         prompt = f"{system_prompt}\n\n任务描述：{task_description}\n\n生成的代码：{code}\n\n错误信息：{error}"
@@ -142,10 +144,29 @@ class WorkerAgent:
                 console.print("[bold red]执行失败！[/bold red]")
                 console.print(f"[red]错误信息：[/red]\n{error}")
                 
+                # 检查是否是缺少库的错误
+                if "ModuleNotFoundError" in error or "ImportError" in error:
+                    console.print("[yellow]检测到缺少库的错误，正在生成安装命令...[/yellow]")
+                
                 # 3. Tech Lead分析错误
                 console.print("[magenta]Tech Lead正在分析错误...[/magenta]")
                 fix_suggestion = self.tech_lead(task_description, code, error)
                 console.print(f"[magenta]修复建议：[/magenta]\n{fix_suggestion}")
+                
+                # 检查修复建议是否包含pip安装命令
+                if fix_suggestion.startswith("pip install"):
+                    console.print("[yellow]正在执行pip安装命令...[/yellow]")
+                    install_result = subprocess.run(
+                        fix_suggestion,
+                        shell=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=60
+                    )
+                    if install_result.returncode == 0:
+                        console.print("[green]库安装成功！[/green]")
+                    else:
+                        console.print(f"[red]库安装失败：[/red]\n{install_result.stderr}")
                 
                 # 更新任务描述，包含修复建议
                 task_description = f"{task_description}\n\n修复建议：{fix_suggestion}"

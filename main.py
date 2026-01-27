@@ -41,8 +41,13 @@ def main():
     while True:
         try:
             # 接收用户输入
-            user_input = Prompt.ask("[bold green]您的需求[/bold green]", default="exit")
-            
+            # 【修复点1】增加 EOFError 的处理，防止 Ctrl+D/Z 导致死循环
+            try:
+                user_input = Prompt.ask("[bold green]您的需求[/bold green]", default="exit")
+            except (EOFError, KeyboardInterrupt):
+                console.print("\n[bold yellow]检测到退出信号，正在退出...[/bold yellow]")
+                break
+
             if user_input.lower() == "exit":
                 console.print("[bold cyan]工具已退出，感谢使用！[/bold cyan]")
                 break
@@ -131,11 +136,15 @@ def main():
                 border_style="green"
             ))
             
+        # 【修复点2】外层捕获防止意外退出，但要区分致命错误
         except KeyboardInterrupt:
             console.print("\n[bold yellow]操作被用户中断。[/bold yellow]")
-            continue
+            break
         except Exception as e:
-            console.print(f"[bold red]发生错误：{str(e)}[/bold red]")
+            console.print(f"[bold red]发生未知错误：{str(e)}[/bold red]")
+            # 如果是输入流错误，必须退出，否则死循环
+            if "EOF" in str(e) or "input" in str(e):
+                break
             continue
 
 if __name__ == "__main__":

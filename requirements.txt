@@ -1,3 +1,4 @@
 google-generativeai
 rich
 python-dotenv
+openai

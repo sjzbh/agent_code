@@ -2,3 +2,10 @@ google-generativeai
 rich
 python-dotenv
 openai
+requests
+pandas
+numpy
+beautifulsoup4
+chardet
+tqdm
+psutil

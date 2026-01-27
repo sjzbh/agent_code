@@ -1,6 +1,7 @@
 import json
 from config import AUDITOR_CONFIG
 from utils import call_llm, clean_json_text
+from prompts import AUDITOR_PROMPT
 from rich.console import Console
 
 console = Console()
@@ -27,17 +28,7 @@ class AuditorAgent:
         Returns:
             dict: 审计结果，格式为 {"status": "PASS/FAIL", "feedback": "..."}
         """
-        system_prompt = """
-        你是一个审计员，你看不见源代码。只根据日志判断任务是否成功。如果失败或有隐患，给出简短的修复建议。
-        请遵循以下规则：
-        1. 仔细分析执行日志，判断任务是否成功完成
-        2. 如果任务成功完成，返回 PASS 状态
-        3. 如果任务失败或存在隐患，返回 FAIL 状态，并给出简短的修复建议
-        4. 只返回 JSON 格式的结果，不要包含任何其他内容
-        5. JSON 格式必须严格为：{"status": "PASS/FAIL", "feedback": "..."}
-        """
-        
-        prompt = f"{system_prompt}\n\n任务描述：{task_description}\n\n执行日志：{execution_logs}"
+        prompt = f"{AUDITOR_PROMPT}\n\n任务描述：{task_description}\n\n执行日志：{execution_logs}"
         
         console.print("[bold purple]Auditor正在分析执行结果...[/bold purple]")
         

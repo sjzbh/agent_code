@@ -5,6 +5,7 @@ import tempfile
 import re
 from config import WORKER_CONFIG
 from utils import clean_json_text, call_llm
+from prompts import CODER_PROMPT, TECH_LEAD_PROMPT
 from rich.console import Console
 
 console = Console()
@@ -23,19 +24,7 @@ class WorkerAgent:
         """
         Coder角色：根据任务描述生成Shell命令或Python代码
         """
-        system_prompt = """
-        你是一个专业的Coder，负责根据任务描述生成可执行的Shell命令或Python代码。
-        请遵循以下规则：
-        1. 分析任务描述，理解用户需求
-        2. 生成简洁、高效、正确的代码或命令
-        3. 如果是Python代码，必须是完整的、可独立运行的脚本
-        4. 不要使用 input() 等待用户输入
-        5. 【关键规则】优先使用 Python 标准库 (Standard Library)。除非任务显式要求或标准库无法实现，否则严禁引入需要 pip 安装的第三方库 (如 pandas, numpy, chardet 等)。
-        6. 对于简单的文本处理或编码修复，请使用 os, sys, codecs 等原生库。
-        7. 只返回代码或命令本身，尽量不要包含 ``` 标记
-        """
-        
-        prompt = f"{system_prompt}\n\n任务描述：{task_description}"
+        prompt = f"{CODER_PROMPT}\n\n任务描述：{task_description}"
         
         if WORKER_CONFIG['client']:
             raw_response = call_llm(WORKER_CONFIG, prompt)
@@ -97,19 +86,7 @@ class WorkerAgent:
         """
         Tech Lead角色：分析代码和报错日志，指导Coder修复错误
         """
-        system_prompt = """
-        你是一个专业的Tech Lead，负责分析代码和报错日志，指导Coder修复错误。
-        请遵循以下规则：
-        1. 分析任务描述、代码和错误信息
-        2. 准确识别错误原因
-        3. 提供清晰、具体的修复建议
-        4. 确保修复后的代码能够正确执行
-        5. 只返回修复建议，不要包含任何解释或额外内容
-        6. 如果错误是缺少Python库，请生成相应的pip安装命令，格式为：pip install 库名
-        7. 如果需要安装多个库，请在一行中用空格分隔，例如：pip install requests pandas numpy
-        """
-        
-        prompt = f"{system_prompt}\n\n任务描述：{task_description}\n\n生成的代码：{code}\n\n错误信息：{error}"
+        prompt = f"{TECH_LEAD_PROMPT}\n\n任务描述：{task_description}\n\n生成的代码：{code}\n\n错误信息：{error}"
         
         if WORKER_CONFIG['client']:
             return call_llm(WORKER_CONFIG, prompt)

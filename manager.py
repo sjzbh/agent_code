@@ -2,6 +2,7 @@ import json
 from config import PM_CONFIG
 from rich.console import Console
 from utils import clean_json_text, call_llm
+from prompts import PM_PROMPT
 
 console = Console()
 
@@ -28,18 +29,7 @@ class ProjectManager:
         Returns:
             list: 任务列表
         """
-        system_prompt = """
-        你是一个专业的项目管理器，负责将用户的需求拆解为具体的、可执行的任务列表。
-        请遵循以下规则：
-        1. 仔细分析用户需求，理解其核心目标
-        2. 将需求拆解为多个具体的、可执行的子任务
-        3. 为每个子任务指定明确的任务描述
-        4. 确保任务之间的逻辑顺序合理
-        5. 只返回JSON格式的任务列表，不要包含任何其他内容
-        6. JSON格式必须严格为：[{"id": "任务ID", "description": "任务描述", "priority": "优先级(high/medium/low)"}]
-        """
-        
-        prompt = f"{system_prompt}\n\n用户需求：{user_request}"
+        prompt = f"{PM_PROMPT}\n\n用户需求：{user_request}"
         
         console.print("[bold green]ProjectManager正在规划任务...[/bold green]")
         
@@ -84,23 +74,12 @@ class ProjectManager:
         Returns:
             list: 更新后的任务列表
         """
-        system_prompt = """
-        你是一个专业的项目管理器，负责根据反馈动态调整任务计划。
-        请遵循以下规则：
-        1. 分析当前的任务队列和反馈信息
-        2. 如果反馈是审计结果，根据结果调整相关任务
-        3. 如果反馈是用户的插队需求，将新任务插入到适当的位置
-        4. 保持任务之间的逻辑顺序合理
-        5. 只返回JSON格式的更新后任务列表，不要包含任何其他内容
-        6. JSON格式必须严格为：[{"id": "任务ID", "description": "任务描述", "priority": "优先级(high/medium/low)"}]
-        """
-        
-        prompt = f"{system_prompt}\n\n当前任务队列：{json.dumps(self.task_queue)}\n\n反馈信息：{feedback}"
+        update_prompt = f"{PM_PROMPT}\n\n当前任务队列：{json.dumps(self.task_queue)}\n\n反馈信息：{feedback}"
         
         console.print("[bold green]ProjectManager正在更新任务计划...[/bold green]")
         
         if PM_CONFIG['client']:
-            response_text = call_llm(PM_CONFIG, prompt)
+            response_text = call_llm(PM_CONFIG, update_prompt)
             response_text = clean_json_text(response_text)
             
             try:

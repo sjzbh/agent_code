@@ -9,3 +9,4 @@ beautifulsoup4
 chardet
 tqdm
 psutil
+streamlit

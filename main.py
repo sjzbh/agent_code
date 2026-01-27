@@ -18,7 +18,99 @@ from auditor import AuditorAgent
 from sandbox import SandboxManager
 from evaluator import EvaluatorAgent
 
+# 尝试导入可视化仪表盘，添加跳过机制
+try:
+    from dashboard import RequestDashboard
+    HAS_DASHBOARD = True
+except ImportError:
+    HAS_DASHBOARD = False
+    print("[警告] 无法导入可视化仪表盘，将使用命令行模式。")
+
 console = Console()
+
+def process_request(user_input, manager, worker, auditor):
+    """
+    处理用户需求的函数
+    """
+    console.print(Panel(
+        f"用户需求：{user_input}",
+        title="[bold green]用户输入[/bold green]",
+        border_style="green"
+    ))
+    
+    tasks = manager.plan_tasks(user_input)
+    
+    if not tasks:
+        console.print("[bold red]任务规划失败，请重试。[/bold red]")
+        return
+    
+    # 执行任务队列
+    task_index = 0
+    while task_index < len(manager.task_queue):
+        # 提取当前最高优先级的任务
+        # 按优先级排序，获取当前任务
+        sorted_tasks = sorted(manager.task_queue[task_index:], key=lambda x: {
+            "high": 0, "medium": 1, "low": 2
+        }[x.get("priority", "medium")])
+        
+        if not sorted_tasks:
+            break
+        
+        current_task = sorted_tasks[0]
+        task_index = manager.task_queue.index(current_task)
+        
+        console.print(Panel(
+            f"任务ID: {current_task.get('id', 'N/A')}\n" +
+            f"任务描述: {current_task['description']}\n" +
+            f"优先级: {current_task.get('priority', 'medium')}",
+            title="[bold blue]当前任务[/bold blue]",
+            border_style="blue"
+        ))
+        
+        # 交给Worker执行
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True
+        ) as progress:
+            progress.add_task("Worker执行任务中...", total=None)
+            execution_result = worker.run(current_task["description"])
+        
+        # 生成执行日志
+        if execution_result["success"]:
+            execution_logs = f"执行成功！\n输出：{execution_result['output']}\n代码：{execution_result['code']}"
+        else:
+            execution_logs = f"执行失败！\n错误：{execution_result['error']}\n代码：{execution_result['code']}"
+        
+        # 交给Auditor审计
+        audit_result = auditor.audit(current_task["description"], execution_logs)
+        
+        # 显示审计结果
+        console.print(Panel(
+            f"状态: {audit_result['status']}\n" +
+            f"反馈: {audit_result['feedback']}",
+            title="[bold purple]审计结果[/bold purple]",
+            border_style="purple"
+        ))
+        
+        # PM根据反馈决定是继续下一个任务，还是插入修复任务
+        if audit_result["status"] == "FAIL":
+            # 更新任务计划
+            updated_tasks = manager.update_plan(audit_result["feedback"])
+            # 重置任务索引，重新开始执行
+            task_index = 0
+        else:
+            # 继续下一个任务
+            task_index += 1
+    
+    # 任务执行完成，显示项目状态
+    project_state = manager.get_project_state()
+    console.print(Panel(
+        f"状态: {project_state.get('status', 'unknown')}\n" +
+        f"完成任务数: {len(project_state.get('task_queue', []))}",
+        title="[bold green]项目状态[/bold green]",
+        border_style="green"
+    ))
 
 def main():
     """
@@ -31,6 +123,7 @@ def main():
     sandbox = SandboxManager()
     evaluator = EvaluatorAgent()
     
+    # 显示模式选择界面
     console.print(Panel(
         "欢迎使用多AI协作CLI工具！\n\n" +
         "这个工具由以下AI角色组成：\n" +
@@ -39,10 +132,64 @@ def main():
         "- Runner: 执行代码或命令\n" +
         "- Tech Lead: 分析错误并提供修复建议\n" +
         "- Auditor: 审计执行结果\n\n" +
-        "请输入您的需求，或输入 'exit' 退出工具。",
+        "请选择操作模式：\n" +
+        "1. 命令行模式（传统REPL）\n" +
+        f"2. 可视化仪表盘模式{'（可用）' if HAS_DASHBOARD else '（不可用）'}\n" +
+        "请输入数字选择模式，或输入 'exit' 退出工具。\n\n" +
+        "提示：您也可以直接运行 desktop_gui.py 启动独立的桌面GUI界面。",
         title="[bold cyan]多AI协作CLI工具[/bold cyan]",
         border_style="cyan"
     ))
+    
+    # 模式选择
+    while True:
+        try:
+            mode_input = Prompt.ask("[bold green]请选择模式[/bold green]", default="1")
+            
+            if mode_input.lower() == "exit":
+                console.print("[bold cyan]工具已退出，感谢使用！[/bold cyan]")
+                return
+            
+            # 处理可视化仪表盘模式
+            if mode_input == "2" and HAS_DASHBOARD:
+                console.print("[bold yellow]正在启动可视化仪表盘...[/bold yellow]")
+                exit_requested = False
+                try:
+                    app = RequestDashboard()
+                    result = app.run()
+                    
+                    if result:
+                        console.print("[bold green]从仪表盘获取到需求：[/bold green]")
+                        console.print(result)
+                        
+                        # 检查是否为退出命令
+                        if result.strip().lower() == "exit":
+                            console.print("[bold cyan]工具已退出，感谢使用！[/bold cyan]")
+                            exit_requested = True
+                            return
+                        
+                        # 直接处理这个需求
+                        process_request(result, manager, worker, auditor)
+                except Exception as e:
+                    console.print(f"[bold red]可视化仪表盘启动失败：{e}[/bold red]")
+                    console.print("[bold yellow]切换到命令行模式...[/bold yellow]")
+                finally:
+                    # 只有在没有请求退出的情况下才切换到命令行模式
+                    if not exit_requested:
+                        console.print("[bold cyan]切换到命令行模式...[/bold cyan]")
+                break
+            
+            # 处理命令行模式
+            elif mode_input == "1" or not HAS_DASHBOARD:
+                console.print("[bold green]进入命令行模式...[/bold green]")
+                break
+            
+            else:
+                console.print("[bold red]无效的选择，请重新输入！[/bold red]")
+                
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[bold yellow]操作被用户中断。[/bold yellow]")
+            return
     
     while True:
         try:
@@ -124,86 +271,8 @@ def main():
                 
                 continue
             
-            # PM生成或更新任务队列
-            console.print(Panel(
-                f"用户需求：{user_input}",
-                title="[bold green]用户输入[/bold green]",
-                border_style="green"
-            ))
-            
-            tasks = manager.plan_tasks(user_input)
-            
-            if not tasks:
-                console.print("[bold red]任务规划失败，请重试。[/bold red]")
-                continue
-            
-            # 执行任务队列
-            task_index = 0
-            while task_index < len(manager.task_queue):
-                # 提取当前最高优先级的任务
-                # 按优先级排序，获取当前任务
-                sorted_tasks = sorted(manager.task_queue[task_index:], key=lambda x: {
-                    "high": 0, "medium": 1, "low": 2
-                }[x.get("priority", "medium")])
-                
-                if not sorted_tasks:
-                    break
-                
-                current_task = sorted_tasks[0]
-                task_index = manager.task_queue.index(current_task)
-                
-                console.print(Panel(
-                    f"任务ID: {current_task.get('id', 'N/A')}\n" +
-                    f"任务描述: {current_task['description']}\n" +
-                    f"优先级: {current_task.get('priority', 'medium')}",
-                    title="[bold blue]当前任务[/bold blue]",
-                    border_style="blue"
-                ))
-                
-                # 交给Worker执行
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    transient=True
-                ) as progress:
-                    progress.add_task("Worker执行任务中...", total=None)
-                    execution_result = worker.run(current_task["description"])
-                
-                # 生成执行日志
-                if execution_result["success"]:
-                    execution_logs = f"执行成功！\n输出：{execution_result['output']}\n代码：{execution_result['code']}"
-                else:
-                    execution_logs = f"执行失败！\n错误：{execution_result['error']}\n代码：{execution_result['code']}"
-                
-                # 交给Auditor审计
-                audit_result = auditor.audit(current_task["description"], execution_logs)
-                
-                # 显示审计结果
-                console.print(Panel(
-                    f"状态: {audit_result['status']}\n" +
-                    f"反馈: {audit_result['feedback']}",
-                    title="[bold purple]审计结果[/bold purple]",
-                    border_style="purple"
-                ))
-                
-                # PM根据反馈决定是继续下一个任务，还是插入修复任务
-                if audit_result["status"] == "FAIL":
-                    # 更新任务计划
-                    updated_tasks = manager.update_plan(audit_result["feedback"])
-                    # 重置任务索引，重新开始执行
-                    task_index = 0
-                else:
-                    # 继续下一个任务
-                    task_index += 1
-            
-            # 任务执行完成，显示项目状态
-            project_state = manager.get_project_state()
-            console.print(Panel(
-                f"状态: {project_state.get('status', 'unknown')}\n" +
-                f"完成任务数: {len(project_state.get('task_queue', []))}",
-                title="[bold green]项目状态[/bold green]",
-                border_style="green"
-            ))
+            # 处理普通需求
+            process_request(user_input, manager, worker, auditor)
             
         # 【修复点2】外层捕获防止意外退出，但要区分致命错误
         except KeyboardInterrupt:

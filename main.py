@@ -18,13 +18,13 @@ from auditor import AuditorAgent
 from sandbox import SandboxManager
 from evaluator import EvaluatorAgent
 
-# 尝试导入可视化仪表盘，添加跳过机制
+# 尝试导入Flet GUI应用，添加跳过机制
 try:
-    from dashboard import RequestDashboard
-    HAS_DASHBOARD = True
+    from gui import AIStudioApp
+    HAS_FLET_GUI = True
 except ImportError:
-    HAS_DASHBOARD = False
-    print("[警告] 无法导入可视化仪表盘，将使用命令行模式。")
+    HAS_FLET_GUI = False
+    print("[警告] 无法导入Flet GUI应用，将使用命令行模式。")
 
 console = Console()
 
@@ -134,59 +134,42 @@ def main():
         "- Auditor: 审计执行结果\n\n" +
         "请选择操作模式：\n" +
         "1. 命令行模式（传统REPL）\n" +
-        f"2. 可视化仪表盘模式{'（可用）' if HAS_DASHBOARD else '（不可用）'}\n" +
+        f"2. Flet GUI模式{'（可用）' if HAS_FLET_GUI else '（不可用）'}\n" +
         "请输入数字选择模式，或输入 'exit' 退出工具。\n\n" +
-        "提示：您也可以直接运行 desktop_gui.py 启动独立的桌面GUI界面。",
+        "提示：您也可以直接运行 gui.py 或 studio_app.py 启动独立的桌面GUI界面。",
         title="[bold cyan]多AI协作CLI工具[/bold cyan]",
         border_style="cyan"
     ))
-    
+
     # 模式选择
     while True:
         try:
             mode_input = Prompt.ask("[bold green]请选择模式[/bold green]", default="1")
-            
+
             if mode_input.lower() == "exit":
                 console.print("[bold cyan]工具已退出，感谢使用！[/bold cyan]")
                 return
-            
-            # 处理可视化仪表盘模式
-            if mode_input == "2" and HAS_DASHBOARD:
-                console.print("[bold yellow]正在启动可视化仪表盘...[/bold yellow]")
-                exit_requested = False
+
+            # 处理Flet GUI模式
+            if mode_input == "2" and HAS_FLET_GUI:
+                console.print("[bold yellow]正在启动Flet GUI应用...[/bold yellow]")
                 try:
-                    app = RequestDashboard()
-                    result = app.run()
-                    
-                    if result:
-                        console.print("[bold green]从仪表盘获取到需求：[/bold green]")
-                        console.print(result)
-                        
-                        # 检查是否为退出命令
-                        if result.strip().lower() == "exit":
-                            console.print("[bold cyan]工具已退出，感谢使用！[/bold cyan]")
-                            exit_requested = True
-                            return
-                        
-                        # 直接处理这个需求
-                        process_request(result, manager, worker, auditor)
+                    app = AIStudioApp()
+                    import flet
+                    flet.app(target=app.main)
+                    return
                 except Exception as e:
-                    console.print(f"[bold red]可视化仪表盘启动失败：{e}[/bold red]")
+                    console.print(f"[bold red]Flet GUI应用启动失败：{e}[/bold red]")
                     console.print("[bold yellow]切换到命令行模式...[/bold yellow]")
-                finally:
-                    # 只有在没有请求退出的情况下才切换到命令行模式
-                    if not exit_requested:
-                        console.print("[bold cyan]切换到命令行模式...[/bold cyan]")
-                break
-            
+
             # 处理命令行模式
-            elif mode_input == "1" or not HAS_DASHBOARD:
+            elif mode_input == "1" or not HAS_FLET_GUI:
                 console.print("[bold green]进入命令行模式...[/bold green]")
                 break
-            
+
             else:
                 console.print("[bold red]无效的选择，请重新输入！[/bold red]")
-                
+
         except (EOFError, KeyboardInterrupt):
             console.print("\n[bold yellow]操作被用户中断。[/bold yellow]")
             return

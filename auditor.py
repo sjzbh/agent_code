@@ -6,6 +6,9 @@ from rich.console import Console
 
 console = Console()
 
+# 日志适配器，可被外部替换
+gui_adapter = type('GUIAdapter', (), {'print': lambda *args, **kwargs: console.print(*args, **kwargs)})()
+
 class AuditorAgent:
     """
     审计员代理，根据执行日志判断任务是否成功
@@ -30,7 +33,7 @@ class AuditorAgent:
         """
         prompt = f"{AUDITOR_PROMPT}\n\n任务描述：{task_description}\n\n执行日志：{execution_logs}"
         
-        console.print("[bold purple]Auditor正在分析执行结果...[/bold purple]")
+        gui_adapter.print("[bold purple]Auditor正在分析执行结果...[/bold purple]")
         
         if AUDITOR_CONFIG['client']:
             response_text = call_llm(AUDITOR_CONFIG, prompt)
@@ -41,17 +44,17 @@ class AuditorAgent:
                 result = json.loads(response_text)
                 # 验证JSON格式是否正确
                 if "status" in result and "feedback" in result:
-                    console.print(f"[bold purple]审计结果：[/bold purple]{result['status']}")
-                    console.print(f"[purple]反馈：[/purple]{result['feedback']}")
+                    gui_adapter.print(f"[bold purple]审计结果：[/bold purple]{result['status']}")
+                    gui_adapter.print(f"[purple]反馈：[/purple]{result['feedback']}")
                     return result
                 else:
                     # 如果JSON格式不正确，返回默认失败结果
-                    console.print("[bold red]警告：Auditor返回的JSON格式不正确[/bold red]")
+                    gui_adapter.print("[bold red]警告：Auditor返回的JSON格式不正确[/bold red]")
                     return {"status": "FAIL", "feedback": "审计过程中出现错误，无法正确解析审计结果"}
             except json.JSONDecodeError:
                 # 如果无法解析JSON，返回默认失败结果
-                console.print("[bold red]警告：Auditor返回的内容不是有效的JSON[/bold red]")
+                gui_adapter.print("[bold red]警告：Auditor返回的内容不是有效的JSON[/bold red]")
                 return {"status": "FAIL", "feedback": "审计过程中出现错误，返回内容不是有效的JSON"}
         else:
-            console.print("[bold red]错误：Auditor AI 未初始化[/bold red]")
+            gui_adapter.print("[bold red]错误：Auditor AI 未初始化[/bold red]")
             return {"status": "FAIL", "feedback": "Auditor AI 未初始化，无法进行审计"}

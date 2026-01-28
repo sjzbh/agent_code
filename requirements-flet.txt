@@ -1,0 +1,7 @@
+# Flet GUI 应用依赖
+flet==0.23.2
+watchdog==4.0.1
+
+# GUI 应用可能需要的额外依赖
+pillow>=8.0.0
+plotly>=5.0.0

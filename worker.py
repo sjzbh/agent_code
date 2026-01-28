@@ -8,7 +8,11 @@ from utils import clean_json_text, call_llm
 from prompts import CODER_PROMPT, TECH_LEAD_PROMPT
 from rich.console import Console
 
+# 默认控制台
 console = Console()
+
+# 日志适配器，可被外部替换
+gui_adapter = type('GUIAdapter', (), {'print': lambda *args, **kwargs: console.print(*args, **kwargs)})()
 
 class WorkerAgent:
     def __init__(self, model_name="gemini-1.5-pro"):
@@ -51,7 +55,7 @@ class WorkerAgent:
                     tmp_file_path = tmp_file.name
                 
                 # 执行临时文件
-                console.print(f"[dim]正在执行临时文件: {tmp_file_path}[/dim]")
+                gui_adapter.print(f"[dim]正在执行临时文件: {tmp_file_path}[/dim]")
                 result = subprocess.run(
                     [sys.executable, tmp_file_path],
                     capture_output=True,
@@ -97,44 +101,44 @@ class WorkerAgent:
         """
         运行整个工作流程：Coder生成代码 → Runner执行 → Tech Lead分析错误（如果有）
         """
-        console.print(f"[bold blue]开始执行任务：[/bold blue]{task_description}")
+        gui_adapter.print(f"[bold blue]开始执行任务：[/bold blue]{task_description}")
         
         for retry in range(self.max_retries):
-            console.print(f"[bold green]第 {retry + 1} 次尝试[/bold green]")
+            gui_adapter.print(f"[bold green]第 {retry + 1} 次尝试[/bold green]")
             
             # 1. Coder生成代码
-            console.print("[cyan]Coder正在生成代码...[/cyan]")
+            gui_adapter.print("[cyan]Coder正在生成代码...[/cyan]")
             code = self.coder(task_description)
-            console.print(f"[cyan]生成的代码：[/cyan]\n{code}")
+            gui_adapter.print(f"[cyan]生成的代码：[/cyan]\n{code}")
             
             # 2. Runner执行代码
-            console.print("[yellow]Runner正在执行代码...[/yellow]")
+            gui_adapter.print("[yellow]Runner正在执行代码...[/yellow]")
             success, output, error = self.runner(code)
             
             if success:
-                console.print("[bold green]执行成功！[/bold green]")
-                console.print(f"[green]输出：[/green]\n{output}")
+                gui_adapter.print("[bold green]执行成功！[/bold green]")
+                gui_adapter.print(f"[green]输出：[/green]\n{output}")
                 return {
                     "success": True,
                     "output": output,
                     "code": code
                 }
             else:
-                console.print("[bold red]执行失败！[/bold red]")
-                console.print(f"[red]错误信息：[/red]\n{error}")
+                gui_adapter.print("[bold red]执行失败！[/bold red]")
+                gui_adapter.print(f"[red]错误信息：[/red]\n{error}")
                 
                 # 检查是否是缺少库的错误
                 if "ModuleNotFoundError" in error or "ImportError" in error:
-                    console.print("[yellow]检测到缺少库的错误，正在生成安装命令...[/yellow]")
+                    gui_adapter.print("[yellow]检测到缺少库的错误，正在生成安装命令...[/yellow]")
                 
                 # 3. Tech Lead分析错误
-                console.print("[magenta]Tech Lead正在分析错误...[/magenta]")
+                gui_adapter.print("[magenta]Tech Lead正在分析错误...[/magenta]")
                 fix_suggestion = self.tech_lead(task_description, code, error)
-                console.print(f"[magenta]修复建议：[/magenta]\n{fix_suggestion}")
+                gui_adapter.print(f"[magenta]修复建议：[/magenta]\n{fix_suggestion}")
                 
                 # 检查修复建议是否包含pip安装命令
                 if fix_suggestion.startswith("pip install"):
-                    console.print("[yellow]正在执行pip安装命令...[/yellow]")
+                    gui_adapter.print("[yellow]正在执行pip安装命令...[/yellow]")
                     install_result = subprocess.run(
                         fix_suggestion,
                         shell=True,
@@ -143,19 +147,19 @@ class WorkerAgent:
                         timeout=60
                     )
                     if install_result.returncode == 0:
-                        console.print("[green]库安装成功！[/green]")
+                        gui_adapter.print("[green]库安装成功！[/green]")
                     else:
-                        console.print(f"[red]库安装失败：[/red]\n{install_result.stderr}")
+                        gui_adapter.print(f"[red]库安装失败：[/red]\n{install_result.stderr}")
                 
                 # 更新任务描述，包含修复建议
                 task_description = f"{task_description}\n\n修复建议：{fix_suggestion}"
                 
                 if retry == self.max_retries - 1:
-                    console.print("[bold red]达到最大重试次数，执行失败[/bold red]")
+                    gui_adapter.print("[bold red]达到最大重试次数，执行失败[/bold red]")
                     return {
                         "success": False,
                         "error": error,
                         "code": code
                     }
                 
-                console.print("[yellow]准备重试...[/yellow]")
+                gui_adapter.print("[yellow]准备重试...[/yellow]")

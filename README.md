@@ -25,8 +25,14 @@ cd ai-collaboration-tool
 ```
 
 ### 2. 安装依赖
+完整安装（包含GUI功能）：
 ```bash
 pip install -r requirements.txt
+```
+
+如果只需要基础功能（无GUI），可以单独安装基础依赖：
+```bash
+pip install google-generativeai rich python-dotenv openai requests pandas numpy beautifulsoup4 chardet tqdm psutil
 ```
 
 ### 3. 配置环境变量

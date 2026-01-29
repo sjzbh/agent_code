@@ -6,9 +6,6 @@ from prompts import PM_PROMPT
 
 console = Console()
 
-# 日志适配器，可被外部替换
-gui_adapter = type('GUIAdapter', (), {'print': lambda *args, **kwargs: console.print(*args, **kwargs)})()
-
 class ProjectManager:
     """
     项目管理器，负责任务规划和状态管理
@@ -34,6 +31,8 @@ class ProjectManager:
         """
         prompt = f"{PM_PROMPT}\n\n用户需求：{user_request}"
         
+        console.print("[bold green]ProjectManager正在规划任务...[/bold green]")
+        
         if PM_CONFIG['client']:
             response_text = call_llm(PM_CONFIG, prompt)
             response_text = clean_json_text(response_text)
@@ -45,62 +44,39 @@ class ProjectManager:
                 if isinstance(tasks, list):
                     # 更新任务队列
                     self.task_queue = tasks
+                    console.print(f"[bold green]任务规划完成，共生成 {len(tasks)} 个任务[/bold green]")
+                    for i, task in enumerate(tasks):
+                        console.print(f"[green]任务 {i+1}:[/green] {task['description']} (优先级: {task['priority']})")
                     # 更新项目状态
                     self.project_state['task_queue'] = tasks
                     self.project_state['status'] = 'planned'
                     self.current_task_index = -1
-                    
-                    # 返回JSON格式结果
-                    result = {
-                        "status": "success",
-                        "user_request": user_request,
-                        "tasks": tasks,
-                        "task_count": len(tasks)
-                    }
-                    print(json.dumps(result, ensure_ascii=True))
                     return tasks
                 else:
                     # 如果任务列表格式不正确，返回空列表
-                    result = {
-                        "status": "error",
-                        "message": "Invalid task list format",
-                        "tasks": []
-                    }
-                    print(json.dumps(result, ensure_ascii=True))
+                    console.print("[bold red]警告：ProjectManager返回的任务列表格式不正确[/bold red]")
                     return []
             except json.JSONDecodeError:
                 # 如果无法解析JSON，返回空列表
-                result = {
-                    "status": "error",
-                    "message": "Failed to parse JSON response",
-                    "tasks": []
-                }
-                print(json.dumps(result, ensure_ascii=True))
+                console.print("[bold red]警告：ProjectManager返回的内容不是有效的JSON[/bold red]")
                 return []
         else:
-            result = {
-                "status": "error",
-                "message": "PM AI not initialized",
-                "tasks": []
-            }
-            print(json.dumps(result, ensure_ascii=True))
+            console.print("[bold red]错误：PM AI 未初始化[/bold red]")
             return []
     
-    def update_plan(self, feedback, failed_task_id=None):
+    def update_plan(self, feedback):
         """
-        接收反馈，动态修改计划。
+        接收Auditor的反馈或用户的插队需求，动态修改队列中尚未开始的任务
+        
         Args:
             feedback: 反馈信息
-            failed_task_id: 导致这次更新的失败任务 ID (例如 "001")
-        """
-        # 在 Prompt 中注入上下文，引导 PM 生成 "001-1" 这种 ID
-        context_info = f"当前任务队列：{json.dumps(self.task_queue)}\n反馈信息：{feedback}"
-        if failed_task_id:
-            context_info += f"\n\n【重要指令】任务 '{failed_task_id}' 执行失败。请将该任务分解或生成修复任务。新任务的 ID 必须以 '{failed_task_id}-' 开头（例如 {failed_task_id}-1），以保持追踪。"
-
-        update_prompt = f"{PM_PROMPT}\n\n{context_info}"
         
-        console.print(f"[bold green]ProjectManager正在针对任务 {failed_task_id} 更新计划...[/bold green]")
+        Returns:
+            list: 更新后的任务列表
+        """
+        update_prompt = f"{PM_PROMPT}\n\n当前任务队列：{json.dumps(self.task_queue)}\n\n反馈信息：{feedback}"
+        
+        console.print("[bold green]ProjectManager正在更新任务计划...[/bold green]")
         
         if PM_CONFIG['client']:
             response_text = call_llm(PM_CONFIG, update_prompt)
@@ -113,44 +89,23 @@ class ProjectManager:
                 if isinstance(updated_tasks, list):
                     # 更新任务队列
                     self.task_queue = updated_tasks
+                    console.print(f"[bold green]任务计划更新完成，共 {len(updated_tasks)} 个任务[/bold green]")
+                    for i, task in enumerate(updated_tasks):
+                        console.print(f"[green]任务 {i+1}:[/green] {task['description']} (优先级: {task['priority']})")
                     # 更新项目状态
                     self.project_state['task_queue'] = updated_tasks
                     self.project_state['status'] = 'updated'
-                    
-                    # 返回JSON格式结果
-                    result = {
-                        "status": "success",
-                        "feedback": feedback,
-                        "updated_tasks": updated_tasks,
-                        "task_count": len(updated_tasks)
-                    }
-                    print(json.dumps(result, ensure_ascii=True))
                     return updated_tasks
                 else:
                     # 如果任务列表格式不正确，返回当前任务队列
-                    result = {
-                        "status": "error",
-                        "message": "Invalid task list format",
-                        "updated_tasks": self.task_queue
-                    }
-                    print(json.dumps(result, ensure_ascii=True))
+                    console.print("[bold red]警告：ProjectManager返回的任务列表格式不正确[/bold red]")
                     return self.task_queue
             except json.JSONDecodeError:
                 # 如果无法解析JSON，返回当前任务队列
-                result = {
-                    "status": "error",
-                    "message": "Failed to parse JSON response",
-                    "updated_tasks": self.task_queue
-                }
-                print(json.dumps(result, ensure_ascii=True))
+                console.print("[bold red]警告：ProjectManager返回的内容不是有效的JSON[/bold red]")
                 return self.task_queue
         else:
-            result = {
-                "status": "error",
-                "message": "PM AI not initialized",
-                "updated_tasks": self.task_queue
-            }
-            print(json.dumps(result, ensure_ascii=True))
+            console.print("[bold red]错误：PM AI 未初始化[/bold red]")
             return self.task_queue
     
     def get_next_task(self):
@@ -163,13 +118,13 @@ class ProjectManager:
         self.current_task_index += 1
         if self.current_task_index < len(self.task_queue):
             task = self.task_queue[self.current_task_index]
-            gui_adapter.print(f"[bold blue]开始执行任务：[/bold blue]{task['description']}")
+            console.print(f"[bold blue]开始执行任务：[/bold blue]{task['description']}")
             # 更新项目状态
             self.project_state['current_task'] = task
             self.project_state['status'] = 'executing'
             return task
         else:
-            gui_adapter.print("[bold green]所有任务已执行完成[/bold green]")
+            console.print("[bold green]所有任务已执行完成[/bold green]")
             # 更新项目状态
             self.project_state['status'] = 'completed'
             return None
@@ -190,4 +145,4 @@ class ProjectManager:
         self.task_queue = []
         self.project_state = {}
         self.current_task_index = -1
-        gui_adapter.print("[bold yellow]ProjectManager已重置[/bold yellow]")
+        console.print("[bold yellow]ProjectManager已重置[/bold yellow]")

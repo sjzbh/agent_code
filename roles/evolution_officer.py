@@ -7,6 +7,7 @@ from config import settings, ai_client_manager
 from utils import clean_json_text, call_llm, load_prompt, safe_json_parse
 from rich.console import Console
 from memory.evolutionary_memory import evolutionary_memory
+from sop_engine.self_evolution import SelfEvolutionEngine
 
 console = Console()
 
@@ -29,6 +30,7 @@ class EvolutionOfficer:
         }
         self.prompts = load_prompt("roles/prompts/evolution_officer.yaml")
         self.memory = evolutionary_memory
+        self.evolver = SelfEvolutionEngine()
 
     def analyze_execution_log(self, execution_log: str) -> Dict[str, Any]:
         """
@@ -154,23 +156,143 @@ class EvolutionOfficer:
             Success status
         """
         console.print("[bold blue]Evolution Officer 启动项目后分析...[/bold blue]")
-        
+
         # Step 1: Analyze execution log
         analysis_result = self.analyze_execution_log(execution_log)
-        
+
         if not analysis_result['success']:
             console.print("[bold red]执行日志分析失败[/bold red]")
             return False
-        
+
         # Step 2: Extract insights
         insight_result = self.extract_insights(analysis_result['analysis'])
-        
+
         if not insight_result['success']:
             console.print("[bold red]洞察提取失败[/bold red]")
             return False
-        
+
         # Step 3: Store insights in knowledge base
         self.store_insights(insight_result['insights'], project_context)
-        
+
         console.print("[bold green]项目后分析完成，洞察已存储！[/bold green]")
+
+        # Check if conditions for self-evolution are met
+        if self.should_self_evolve():
+            console.print("[bold magenta]触发自我进化条件，启动系统重写...[/bold magenta]")
+            self.initiate_self_evolution(project_context)
+
         return True
+
+    def should_self_evolve(self) -> bool:
+        """
+        Determine if self-evolution should be triggered
+        Returns:
+            Boolean indicating if self-evolution should occur
+        """
+        # Check for repeated patterns in the knowledge base that suggest optimization
+        recent_insights = self.memory.get_recent_insights(10)  # Get last 10 insights
+
+        # Count specific patterns that suggest evolution
+        linux_specific_issues = 0
+        error_patterns = 0
+        unused_component_mentions = 0
+
+        for insight in recent_insights:
+            insight_str = str(insight).lower()
+            if 'linux' in insight_str and ('permission' in insight_str or 'path' in insight_str or 'environment' in insight_str):
+                linux_specific_issues += 1
+            if 'error' in insight_str and 'solution' in insight_str:
+                error_patterns += 1
+            if 'unused' in insight_str or 'never called' in insight_str:
+                unused_component_mentions += 1
+
+        # If we have enough signals, trigger evolution
+        return linux_specific_issues >= 2 or error_patterns >= 3 or unused_component_mentions >= 1
+
+    def initiate_self_evolution(self, project_context: str = ""):
+        """
+        Initiate the self-evolution process
+        Args:
+            project_context: Context of the triggering project
+        """
+        console.print("[bold magenta]开始自我进化进程...[/bold magenta]")
+
+        # Gather all necessary information for evolution
+        knowledge_base = self.memory.get_full_knowledge_base()
+        system_source_code = self._get_system_source_code()
+
+        # Perform self-evolution
+        evolution_result = self.perform_self_evolution(
+            source_code=system_source_code,
+            insights=knowledge_base,
+            project_context=project_context
+        )
+
+        if evolution_result['success']:
+            console.print("[bold green]自我进化成功完成！[/bold green]")
+        else:
+            console.print(f"[bold red]自我进化失败: {evolution_result.get('error', 'Unknown error')}[/bold red]")
+
+    def _get_system_source_code(self) -> str:
+        """
+        Get the system's source code for evolution
+        Returns:
+            String containing system source code
+        """
+        import os
+        source_code = ""
+
+        # Collect source code from key directories
+        for root, dirs, files in os.walk(".", topdown=True):
+            # Skip certain directories
+            dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'sandbox', 'venv', 'node_modules']]
+
+            for file in files:
+                if file.endswith('.py'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            source_code += f"\n\n--- FILE: {file_path} ---\n{content}\n--- END OF {file_path} ---\n"
+                    except Exception:
+                        # Skip files that can't be read
+                        continue
+
+        return source_code
+
+    def perform_self_evolution(self, source_code: str, insights: Dict[str, Any], project_context: str = "") -> Dict[str, Any]:
+        """
+        Perform the self-evolution process
+        Args:
+            source_code: Current system source code
+            insights: Insights from knowledge base
+            project_context: Context of the triggering project
+        Returns:
+            Evolution result
+        """
+        console.print("[bold magenta]Evolution Officer 正在执行自我重写...[/bold magenta]")
+
+        # Use the SelfEvolutionEngine to generate the next generation agent
+        success = self.evolver.generate_next_gen_agent(source_code, insights)
+
+        if success:
+            # Record the evolution in the knowledge base
+            self.memory.add_solution(
+                solution=f"Generated next-gen agent based on context: {project_context}",
+                description="Self-evolution successfully generated next generation agent"
+            )
+
+            console.print("[bold green]自我重写成功完成！[/bold green]")
+            return {
+                "success": True,
+                "evolution_result": "Next generation agent generated successfully",
+                "raw_response": "Self-evolution completed"
+            }
+        else:
+            console.print("[bold red]自我重写失败[/bold red]")
+            return {
+                "success": False,
+                "evolution_result": {},
+                "raw_response": "",
+                "error": "Self-evolution failed"
+            }

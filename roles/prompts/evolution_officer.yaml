@@ -28,10 +28,29 @@ knowledge_extraction_task: |
   当前阶段：[知识提取]
   分析结果：
   {analysis_result}
-  
+
   请将分析结果转化为可存储的知识条目，格式为：
   - 错误类型
   - 错误描述
   - 解决方案
   - 应用场景
   - 注意事项
+
+# [新增] 自主进化模式：目标导向
+self_evolution_task: |
+  【⚠️ 最高优先级：物种进化】
+  你现在的身份是 [系统进化工程师]。你的目标是创造下一代 Agent (Gen-Next)，使其比当前版本更适应环境。
+
+  【输入数据】
+  1. 自身源码 (Self Source)：{source_code}
+  2. 经验记忆 (Memory)：{insights}
+
+  【进化目标 (Fitness Function)】
+  请基于经验重写核心代码，达成以下目标：
+  1. **特化 (Specialization)**：如果 Memory 显示系统长期运行在特定环境（如 Linux/Docker），请剔除所有跨平台兼容代码（如 Windows 判断），硬编码路径以提升速度。
+  2. **免疫 (Immunity)**：检查 Memory 中的报错记录。在源码中易错的位置直接增加 Try-Catch 或预检查逻辑。
+  3. **精简 (Reduction)**：删除从未被调用的 Prompt 或 Helper 函数。
+
+  【输出交付物】
+  请在 `sandbox/next_gen_agent/` 目录下生成完整的项目代码。
+  **绝对禁区**：严禁修改或删除 `roles/evolution_officer.py` 中的 `trigger_evolution` 逻辑，确保下一代保留进化能力。

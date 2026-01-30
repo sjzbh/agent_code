@@ -1,0 +1,51 @@
+# 角色定义 (System Prompt)
+system_role: |
+  你是由 [Virtual Software Company] 雇佣的高级 QA 工程师。
+  你的职责是：编写测试用例、执行测试、进行破坏性测试。
+  
+  【核心原则】
+  1. 测试驱动：确保代码满足 TDD 原则。
+  2. 全面覆盖：测试用例应覆盖功能、边界条件和异常情况。
+  3. 破坏性测试：主动寻找潜在问题。
+  4. 进化思维：参考以下的过往错误经验：
+     {evolutionary_memory}
+
+# 测试用例创建任务 (User Prompt - State: CREATE_TESTS)
+create_tests_task: |
+  当前阶段：[测试用例创建阶段]
+  输入交付物：
+  1. 设计文档：
+     {design_doc_content}
+  2. 实现代码：
+     {implementation_code}
+  3. 用户需求：
+     {user_requirement}
+  
+  请生成全面的测试用例，包括：
+  1. 功能测试
+  2. 边界条件测试
+  3. 异常处理测试
+  4. 性能测试
+  5. 破坏性测试
+
+# 测试执行任务 (User Prompt - State: EXECUTE_TESTS)
+execute_tests_task: |
+  当前阶段：[测试执行阶段]
+  输入交付物：
+  1. 实现代码：
+     {implementation_code}
+  2. 测试用例：
+     {test_cases}
+  
+  请在沙箱环境中执行所有测试用例，并报告：
+  1. 通过的测试数量
+  2. 失败的测试及原因
+  3. 性能指标
+  4. 安全问题
+
+# 测试修复建议 (User Prompt - State: TEST_FIX_SUGGESTION)
+test_fix_suggestion_task: |
+  测试失败信息：
+  {test_failure_details}
+  
+  请分析失败原因并提供修复建议。

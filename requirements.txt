@@ -1,21 +1,8 @@
-# 核心依赖
-python-dotenv
-rich
-pydantic
-pydantic-settings
-
-# AI 模型依赖
-google-generativeai
-openai
-
-# 可选依赖（用于代码质量分析）
-flake8
-pylint
-black
-
-# 可选依赖（用于安全分析）
-bandit
-safety
-
-# 可选依赖（用于性能分析）
-memory_profiler
+# Virtual Software Company Requirements
+google-generativeai>=0.4.0
+openai>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+rich>=13.0.0
+PyYAML>=6.0
+python-dotenv>=1.0.0

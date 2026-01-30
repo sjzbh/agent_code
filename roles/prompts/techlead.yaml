@@ -1,0 +1,45 @@
+# 角色定义 (System Prompt)
+system_role: |
+  你是由 [Virtual Software Company] 雇佣的技术主管。
+  你的职责是：审查代码质量、架构合规性、安全性和性能。
+  
+  【核心原则】
+  1. 严格把关：不符合设计规范的代码必须驳回。
+  2. 质量导向：关注代码可维护性、性能和安全性。
+  3. 建设性反馈：提供具体的改进建议。
+  4. 进化思维：参考以下的过往错误经验：
+     {evolutionary_memory}
+
+# 代码审查任务 (User Prompt - State: REVIEW)
+code_review_task: |
+  当前阶段：[代码审查阶段]
+  输入交付物：
+  1. 设计文档：
+     {design_doc_content}
+  2. 待审查代码：
+     {code_content}
+  3. 用户需求：
+     {user_requirement}
+  
+  请进行全面的代码审查，重点关注：
+  1. 是否符合设计文档要求
+  2. 代码质量和最佳实践
+  3. 安全性问题
+  4. 性能问题
+  
+  返回审查结果，包含：
+  - approved: true/false
+  - feedback: 审查意见
+  - issues: 发现的问题列表
+  - suggestions: 改进建议
+
+# 重新审查任务 (User Prompt - State: RE_REVIEW)
+re_review_task: |
+  代码已根据之前的反馈修改。
+  原始审查反馈：
+  {original_feedback}
+  
+  修改后的代码：
+  {modified_code}
+  
+  请重新审查修改后的代码。

@@ -5,9 +5,9 @@ import json
 import os
 from typing import Dict, Any
 from config import settings, ai_client_manager
-from utils import clean_json_text, call_llm
-from prompts import QA_ENGINEER_PROMPT
+from utils import clean_json_text, call_llm, load_prompt
 from rich.console import Console
+from memory.evolutionary_memory import evolutionary_memory
 
 console = Console()
 
@@ -24,32 +24,46 @@ class QAEngineer:
             "type": "none",
             "model": "none"
         }
+        self.prompts = load_prompt("roles/prompts/qa_engineer.yaml")
+        self.memory = evolutionary_memory
 
-    def create_test_cases(self, design_document: str, task_description: str) -> Dict[str, Any]:
+    def create_test_cases(self, design_document: str, implementation_code: str, task_description: str) -> Dict[str, Any]:
         """
         Create test cases based on design document and task description
         Args:
             design_document: System design document
+            implementation_code: Implementation code to test
             task_description: Task description
         Returns:
             Test cases and testing strategy
         """
         console.print("[bold blue]QA Engineer 正在创建测试用例...[/bold blue]")
-        
-        prompt = f"{QA_ENGINEER_PROMPT}\n\n系统设计文档：{design_document}\n\n任务描述：{task_description}\n\n请生成相应的测试用例和测试策略。"
-        
+
+        # Retrieve relevant memories
+        memory_context = self.memory.apply_solutions(task_description)
+        memory_str = "\n".join(memory_context) if memory_context else "无历史经验"
+
+        # Format the prompt using the YAML template
+        prompt_template = self.prompts['create_tests_task']
+        prompt = prompt_template.format(
+            design_doc_content=design_document,
+            implementation_code=implementation_code,
+            user_requirement=task_description,
+            evolutionary_memory=memory_str
+        )
+
         if self.qa_config['client']:
             raw_response = call_llm(self.qa_config, prompt)
             test_output = clean_json_text(raw_response)
-            
+
             # Parse the test output
             try:
                 test_data = json.loads(test_output)
                 console.print("[bold green]测试用例创建完成！[/bold green]")
-                
+
                 # Save test files
                 test_files_created = self.save_test_files(test_data.get('test_files', []))
-                
+
                 return {
                     "success": True,
                     "test_cases": test_data.get('test_cases', []),
@@ -81,6 +95,127 @@ class QAEngineer:
                 "error": "QA Engineer AI 未初始化"
             }
 
+    def execute_tests(self, implementation_code: str, test_cases: list) -> Dict[str, Any]:
+        """
+        Execute tests against implementation code
+        Args:
+            implementation_code: Code to test
+            test_cases: List of test cases to execute
+        Returns:
+            Test execution results
+        """
+        console.print("[bold blue]QA Engineer 正在执行测试...[/bold blue]")
+
+        # Retrieve relevant memories
+        memory_context = self.memory.apply_solutions("test execution")
+        memory_str = "\n".join(memory_context) if memory_context else "无历史经验"
+
+        # Format the prompt using the YAML template
+        prompt_template = self.prompts['execute_tests_task']
+        prompt = prompt_template.format(
+            implementation_code=implementation_code,
+            test_cases=str(test_cases),
+            evolutionary_memory=memory_str
+        )
+
+        if self.qa_config['client']:
+            raw_response = call_llm(self.qa_config, prompt)
+            test_output = clean_json_text(raw_response)
+
+            # Parse the test execution results
+            try:
+                test_results = json.loads(test_output)
+                console.print("[bold green]测试执行完成！[/bold green]")
+
+                return {
+                    "success": test_results.get('success', False),
+                    "passed": test_results.get('passed', 0),
+                    "failed": test_results.get('failed', 0),
+                    "skipped": test_results.get('skipped', 0),
+                    "total": test_results.get('total', 0),
+                    "details": test_results.get('details', ''),
+                    "raw_output": test_output
+                }
+            except json.JSONDecodeError:
+                console.print("[bold red]测试执行结果解析失败，返回原始内容[/bold red]")
+                return {
+                    "success": False,
+                    "passed": 0,
+                    "failed": 0,
+                    "skipped": 0,
+                    "total": 0,
+                    "details": "测试执行结果解析失败",
+                    "raw_output": test_output,
+                    "error": "测试执行结果解析失败"
+                }
+        else:
+            console.print("[bold red]错误: QA Engineer AI 未初始化[/bold red]")
+            return {
+                "success": False,
+                "passed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "total": 0,
+                "details": "QA Engineer AI 未初始化",
+                "raw_output": "",
+                "error": "QA Engineer AI 未初始化"
+            }
+
+    def suggest_fixes_for_failed_tests(self, test_failure_details: str) -> Dict[str, Any]:
+        """
+        Suggest fixes for failed tests
+        Args:
+            test_failure_details: Details of test failures
+        Returns:
+            Fix suggestions
+        """
+        console.print("[bold blue]QA Engineer 正在分析测试失败原因并提供建议...[/bold blue]")
+
+        # Retrieve relevant memories
+        memory_context = self.memory.apply_solutions(test_failure_details)
+        memory_str = "\n".join(memory_context) if memory_context else "无历史经验"
+
+        # Format the prompt using the YAML template
+        prompt_template = self.prompts['test_fix_suggestion_task']
+        prompt = prompt_template.format(
+            test_failure_details=test_failure_details,
+            evolutionary_memory=memory_str
+        )
+
+        if self.qa_config['client']:
+            raw_response = call_llm(self.qa_config, prompt)
+            fix_output = clean_json_text(raw_response)
+
+            # Parse the fix suggestions
+            try:
+                fix_data = json.loads(fix_output)
+                console.print("[bold green]修复建议生成完成！[/bold green]")
+
+                return {
+                    "success": True,
+                    "fix_suggestions": fix_data.get('suggestions', []),
+                    "analysis": fix_data.get('analysis', ''),
+                    "raw_output": fix_output
+                }
+            except json.JSONDecodeError:
+                console.print("[bold red]修复建议解析失败，返回原始内容[/bold red]")
+                return {
+                    "success": False,
+                    "fix_suggestions": [],
+                    "analysis": "",
+                    "raw_output": fix_output,
+                    "error": "修复建议解析失败"
+                }
+        else:
+            console.print("[bold red]错误: QA Engineer AI 未初始化[/bold red]")
+            return {
+                "success": False,
+                "fix_suggestions": [],
+                "analysis": "",
+                "raw_output": "",
+                "error": "QA Engineer AI 未初始化"
+            }
+
     def save_test_files(self, test_files_data: list) -> list:
         """
         Save test files to disk
@@ -93,17 +228,17 @@ class QAEngineer:
         for file_info in test_files_data:
             file_path = file_info.get('path', '')
             content = file_info.get('content', '')
-            
+
             # Create directory if it doesn't exist
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            
+
             # Write file content
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            
+
             created_files.append(file_path)
             console.print(f"[green]创建测试文件: {file_path}[/green]")
-        
+
         return created_files
 
     def run_tests(self, project_path: str) -> Dict[str, Any]:
@@ -115,14 +250,14 @@ class QAEngineer:
             Test execution results
         """
         console.print(f"[bold blue]QA Engineer 正在运行测试...[/bold blue]")
-        
+
         # This would typically run pytest or other test frameworks
         # For now, we'll simulate the test execution
         try:
             # In a real implementation, this would run actual tests
             # For example: subprocess.run(['pytest', project_path, '-v'])
             console.print("[green]测试执行完成！[/green]")
-            
+
             return {
                 "success": True,
                 "passed": 10,  # Simulated test results

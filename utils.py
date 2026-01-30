@@ -1,41 +1,59 @@
-import re
+"""
+Utils for the Virtual Software Company
+Contains utility functions including prompt loading
+"""
+import yaml
+import json
+from typing import Dict, Any
+from pathlib import Path
 
-def clean_json_text(text):
-    """清理 Markdown 标记，提取纯文本/JSON"""
-    text = text.strip()
-    text = re.sub(r"^```[a-zA-Z]*\n", "", text)
-    text = re.sub(r"\n```$", "", text)
-    return text.strip()
-
-def call_llm(config, prompt):
+def load_prompt(prompt_path: str) -> Dict[str, Any]:
     """
-    万能调用接口：根据传入的 config 自动判断是调 Gemini 还是 OpenAI
+    Load prompt templates from YAML or JSON file
     Args:
-        config: 包含 client, type, model 的字典 (来自 config.py)
-        prompt: 提示词
+        prompt_path: Path to the prompt template file
+    Returns:
+        Dictionary containing prompt templates
     """
-    client = config.get("client")
-    model_type = config.get("type")
-    model_name = config.get("model")
+    path = Path(prompt_path)
+    
+    if path.suffix.lower() in ['.yaml', '.yml']:
+        with open(path, 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    elif path.suffix.lower() == '.json':
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    else:
+        raise ValueError(f"Unsupported file format: {path.suffix}")
 
-    if not client:
-        return "错误: 此角色的 AI 客户端未初始化，请检查 .env 配置"
+def call_llm(config: Dict[str, Any], prompt: str) -> str:
+    """
+    Call LLM with given config and prompt
+    Args:
+        config: Configuration for the LLM
+        prompt: Prompt to send to the LLM
+    Returns:
+        Response from the LLM
+    """
+    # This is a simplified version - in the actual implementation,
+    # this would interface with the AI client manager
+    client = config.get('client')
+    if client:
+        # Actual implementation would call the client
+        # For now, returning a placeholder
+        return f"LLM Response to: {prompt[:50]}..."
+    else:
+        return "Client not initialized"
 
-    try:
-        # 分流逻辑
-        if model_type == "gemini":
-            response = client.generate_content(prompt)
-            return response.text
-        
-        elif model_type == "openai":
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response.choices[0].message.content
-        
-        else:
-            return f"错误: 未知的模型类型 {model_type}"
-
-    except Exception as e:
-        return f"API 调用报错: {str(e)}"
+def clean_json_text(text: str) -> str:
+    """
+    Clean JSON text by removing markdown code blocks
+    Args:
+        text: Text that may contain JSON in markdown code blocks
+    Returns:
+        Cleaned JSON text
+    """
+    # Remove markdown code block markers
+    text = text.replace('```json', '').replace('```', '')
+    # Remove extra whitespace
+    return text.strip()

@@ -4,9 +4,9 @@ Auditor Agent for the Virtual Software Company
 import json
 from typing import Dict, Any
 from config import settings, ai_client_manager
-from utils import clean_json_text, call_llm
-from prompts import AUDITOR_PROMPT
+from utils import clean_json_text, call_llm, load_prompt
 from rich.console import Console
+from memory.evolutionary_memory import evolutionary_memory
 
 console = Console()
 
@@ -14,7 +14,7 @@ class AuditorAgent:
     """
     Auditor Agent - responsible for final acceptance testing
     """
-    
+
     def __init__(self, model_name="gemini-1.5-pro"):
         """
         Initialize Auditor Agent
@@ -27,6 +27,8 @@ class AuditorAgent:
             "type": "none",
             "model": "none"
         }
+        self.prompts = load_prompt("company/prompts/auditor.yaml")
+        self.memory = evolutionary_memory
 
     def audit(self, task_description: str = None, execution_logs: list = None) -> Dict[str, Any]:
         """
@@ -38,28 +40,39 @@ class AuditorAgent:
             Audit result
         """
         console.print("[bold blue]Auditor 正在进行最终验收...[/bold blue]")
-        
+
+        # Retrieve relevant memories
+        memory_context = self.memory.apply_solutions(task_description or "")
+        memory_str = "\n".join(memory_context) if memory_context else "无历史经验"
+
         # Build the audit prompt
         logs_str = "\n".join(execution_logs) if execution_logs else "No execution logs provided"
-        prompt = f"{AUDITOR_PROMPT}\n\n任务描述：{task_description}\n\n执行日志：{logs_str}"
-        
+
+        # Format the prompt using the YAML template
+        prompt_template = self.prompts['acceptance_task']
+        prompt = prompt_template.format(
+            task_description=task_description or "No task description provided",
+            execution_logs=logs_str,
+            evolutionary_memory=memory_str
+        )
+
         if self.auditor_config['client']:
             raw_response = call_llm(self.auditor_config, prompt)
             audit_result = clean_json_text(raw_response)
-            
+
             # Parse the audit result
             try:
                 audit_data = json.loads(audit_result)
                 console.print("[bold green]审计完成！[/bold green]")
-                
+
                 status = audit_data.get('status', 'FAIL')
                 feedback = audit_data.get('feedback', 'No feedback provided')
-                
+
                 if status == 'PASS':
                     console.print("[bold green]项目验收通过！[/bold green]")
                 else:
                     console.print(f"[bold red]项目验收未通过: {feedback}[/bold red]")
-                
+
                 return {
                     "status": status,
                     "feedback": feedback,

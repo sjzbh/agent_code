@@ -8,7 +8,10 @@ import json
 import os
 from pathlib import Path
 
-from roles import Architect, Coder, TechLead, QAEngineer
+from roles.architect import Architect
+from roles.coder import Coder
+from roles.techlead import TechLead
+from roles.qa_engineer import QAEngineer
 from company.runner import Runner
 from company.auditor import AuditorAgent
 
@@ -38,7 +41,7 @@ class WorkflowState:
 
 class SOPScheduler:
     """SOP State Graph Scheduler - manages the workflow between different roles"""
-    
+
     def __init__(self):
         self.architect = Architect()
         self.coder = Coder()
@@ -46,10 +49,10 @@ class SOPScheduler:
         self.qa_engineer = QAEngineer()
         self.runner = Runner()
         self.auditor = AuditorAgent()
-        
+
         # Initialize workflow state
         self.state = WorkflowState(stage=CompanyStage.PM_REQUIREMENTS)
-        
+
         # Define the workflow graph
         self.workflow_graph = {
             CompanyStage.PM_REQUIREMENTS: self._process_pm_requirements,
@@ -59,11 +62,11 @@ class SOPScheduler:
             CompanyStage.QA_TESTING: self._process_qa_testing,
             CompanyStage.AUDITOR_ACCEPTANCE: self._process_auditor_acceptance
         }
-    
+
     def execute_workflow(self, user_requirement: str) -> WorkflowState:
         """Execute the complete workflow from PM requirements to completion"""
         self.state.user_requirement = user_requirement
-        
+
         # Execute each stage in sequence
         stages_order = [
             CompanyStage.ARCHITECT_DESIGN,
@@ -72,18 +75,18 @@ class SOPScheduler:
             CompanyStage.QA_TESTING,
             CompanyStage.AUDITOR_ACCEPTANCE
         ]
-        
+
         for stage in stages_order:
             self.state.stage = stage
             console.print(f"[bold yellow]执行阶段: {stage.value}[/bold yellow]")
-            
+
             # Process the current stage
             success = self._execute_stage(stage)
-            
+
             if not success:
                 self.state.stage = CompanyStage.FAILED
                 return self.state
-            
+
             # Check if we need to loop back due to review rejection
             if stage == CompanyStage.TECHLEAD_REVIEW:
                 review_approved = self.state.artifacts.get('review_approved', True)
@@ -95,10 +98,10 @@ class SOPScheduler:
                     if not success:
                         self.state.stage = CompanyStage.FAILED
                         return self.state
-        
+
         self.state.stage = CompanyStage.COMPLETED
         return self.state
-    
+
     def _execute_stage(self, stage: CompanyStage) -> bool:
         """Execute a single stage"""
         try:
@@ -112,13 +115,13 @@ class SOPScheduler:
             console.print(f"[bold red]执行阶段 {stage} 时出错: {e}[/bold red]")
             self.state.error_message = str(e)
             return False
-    
+
     def _process_pm_requirements(self) -> bool:
         """Process PM requirements stage"""
         # This stage just sets up the initial requirement
         console.print(f"[green]已接收需求: {self.state.user_requirement}[/green]")
         return True
-    
+
     def _process_architect_design(self) -> bool:
         """Process architect design stage"""
         result = self.architect.design_system(self.state.user_requirement)
@@ -130,22 +133,22 @@ class SOPScheduler:
         else:
             console.print(f"[red]架构设计失败: {result.get('error', 'Unknown error')}[/red]")
             return False
-    
+
     def _process_coder_implementation(self) -> bool:
         """Process coder implementation stage"""
         # Get any review feedback to incorporate into the implementation
         review_feedback = self.state.review_feedback
-        
+
         # Combine original requirement with design document
         task_description = self.state.user_requirement
         if review_feedback:
             task_description += f"\n\n代码审查反馈: {review_feedback}"
-        
+
         result = self.coder.implement_code(
             design_document=self.state.design_document,
             task_description=task_description
         )
-        
+
         if result['success']:
             self.state.implementation = result['raw_output']
             if not self.state.artifacts:
@@ -159,23 +162,23 @@ class SOPScheduler:
         else:
             console.print(f"[red]代码实现失败: {result.get('error', 'Unknown error')}[/red]")
             return False
-    
+
     def _process_techlead_review(self) -> bool:
         """Process techlead review stage"""
         # Get implementation details
         implementation = self.state.implementation
         design_document = self.state.design_document
-        
+
         # Perform code review
         review_result = self.techlead.review_code(
             code=implementation,
             design_document=design_document,
             task_description=self.state.user_requirement
         )
-        
+
         if 'error' not in review_result:
             self.state.review_feedback = review_result['feedback']
-            
+
             if not self.state.artifacts:
                 self.state.artifacts = {}
             self.state.artifacts.update({
@@ -183,7 +186,7 @@ class SOPScheduler:
                 'review_feedback': review_result['feedback'],
                 'review_issues': review_result['issues']
             })
-            
+
             if review_result['approved']:
                 console.print("[green]代码审查通过[/green]")
                 return True
@@ -194,22 +197,25 @@ class SOPScheduler:
         else:
             console.print(f"[red]代码审查失败: {review_result.get('error', 'Unknown error')}[/red]")
             return False
-    
+
     def _process_qa_testing(self) -> bool:
         """Process QA testing stage"""
         # Create test cases based on design and requirements
         test_result = self.qa_engineer.create_test_cases(
             design_document=self.state.design_document,
+            implementation_code=self.state.implementation,
             task_description=self.state.user_requirement
         )
-        
+
         if test_result['success']:
-            # Run the tests in a sandbox environment
-            project_path = "."  # In real scenario, this would be the project directory
-            test_execution = self.qa_engineer.run_tests(project_path)
-            
+            # Execute tests against the implementation
+            test_execution = self.qa_engineer.execute_tests(
+                implementation_code=self.state.implementation,
+                test_cases=test_result['test_cases']
+            )
+
             self.state.test_results = test_execution
-            
+
             if not self.state.artifacts:
                 self.state.artifacts = {}
             self.state.artifacts.update({
@@ -217,7 +223,7 @@ class SOPScheduler:
                 'test_strategy': test_result['test_strategy'],
                 'test_execution': test_execution
             })
-            
+
             if test_execution['success'] and test_execution.get('failed', 0) == 0:
                 console.print("[green]测试通过[/green]")
                 return True
@@ -227,24 +233,24 @@ class SOPScheduler:
         else:
             console.print(f"[red]测试创建失败: {test_result.get('error', 'Unknown error')}[/red]")
             return False
-    
+
     def _process_auditor_acceptance(self) -> bool:
         """Process auditor acceptance stage"""
         # Perform final audit
         audit_result = self.auditor.audit(
             task_description=self.state.user_requirement,
-            execution_logs=[f"Design: {self.state.design_document}", 
+            execution_logs=[f"Design: {self.state.design_document}",
                            f"Implementation: {self.state.implementation}"]
         )
-        
+
         self.state.acceptance_result = audit_result
-        
+
         if not self.state.artifacts:
             self.state.artifacts = {}
         self.state.artifacts.update({
             'acceptance_result': audit_result
         })
-        
+
         if audit_result.get('status') == 'PASS':
             console.print("[green]项目验收通过[/green]")
             return True

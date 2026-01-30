@@ -100,13 +100,51 @@ def safe_json_parse(text: str, default_return: Dict[str, Any] = None) -> Dict[st
         parsed_json = json.loads(cleaned_text)
         return parsed_json
     except json.JSONDecodeError:
-        # If JSON parsing fails, try to extract JSON from the text
+        # If JSON parsing fails, try to extract JSON from the text using multiple strategies
         try:
-            # Look for JSON-like structure in the text
-            json_match = re.search(r'\{.*\}', text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
+            # Strategy 1: Look for JSON structure between curly braces
+            brace_count = 0
+            start_idx = -1
+            end_idx = -1
+
+            for i, char in enumerate(cleaned_text):
+                if char == '{':
+                    if brace_count == 0:
+                        start_idx = i
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0 and start_idx != -1:
+                        end_idx = i
+                        break
+
+            if start_idx != -1 and end_idx != -1:
+                json_str = cleaned_text[start_idx:end_idx+1]
                 return json.loads(json_str)
+        except:
+            pass
+
+        try:
+            # Strategy 2: Use regex to find JSON-like structure
+            import re
+            json_match = re.search(r'\{(?:[^{}]|{[^{}]*})*\}', text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+        except:
+            pass
+
+        try:
+            # Strategy 3: Alternative regex for nested structures
+            import re
+            pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            matches = re.findall(pattern, text)
+            if matches:
+                # Try each match until one parses correctly
+                for match in matches:
+                    try:
+                        return json.loads(match)
+                    except:
+                        continue
         except:
             pass
 

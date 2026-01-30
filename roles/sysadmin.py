@@ -54,7 +54,7 @@ class SysAdmin:
 
     def run_code_with_monitoring(self, code_content: str, environment_requirements: str = "") -> Dict[str, Any]:
         """
-        Run code with monitoring and detailed reporting
+        Run code with monitoring and detailed reporting (Linux-optimized)
         Args:
             code_content: Code to run
             environment_requirements: Environment requirements
@@ -69,17 +69,39 @@ class SysAdmin:
             temp_file = f.name
 
         try:
-            # Run the code in a subprocess
+            # Run the code in a subprocess using Linux-specific paths
             result = subprocess.run(
                 [sys.executable, temp_file],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
+                # Use Linux-specific environment settings
+                env={**os.environ, "PYTHONPATH": os.getcwd()}
             )
 
             success = result.returncode == 0
             stdout = result.stdout
             stderr = result.stderr
+
+            # If execution fails, try to analyze the error and suggest fixes
+            if not success:
+                error_analysis = self._analyze_error(stderr, environment_requirements)
+                if error_analysis['needs_fix']:
+                    console.print(f"[yellow]检测到环境问题，尝试修复: {error_analysis['suggested_fix']}[/yellow]")
+                    # Apply the suggested fix
+                    self._apply_fix(error_analysis['suggested_fix'])
+
+                    # Retry execution
+                    result = subprocess.run(
+                        [sys.executable, temp_file],
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        env={**os.environ, "PYTHONPATH": os.getcwd()}
+                    )
+                    success = result.returncode == 0
+                    stdout = result.stdout
+                    stderr = result.stderr
 
             return {
                 "success": success,
@@ -104,6 +126,75 @@ class SysAdmin:
         finally:
             # Clean up the temporary file
             os.unlink(temp_file)
+
+    def _analyze_error(self, stderr: str, environment_requirements: str) -> Dict[str, Any]:
+        """
+        Analyze error output and suggest fixes (Linux-optimized)
+        Args:
+            stderr: Error output from execution
+            environment_requirements: Environment requirements
+        Returns:
+            Analysis with suggested fixes
+        """
+        # Check for common Linux-specific errors
+        if "ModuleNotFoundError" in stderr or "ImportError" in stderr:
+            # Extract module name from error
+            import re
+            match = re.search(r"named ['\"]([^'\"]+)['\"]", stderr)
+            if match:
+                module_name = match.group(1)
+                return {
+                    "needs_fix": True,
+                    "suggested_fix": f"pip install {module_name}",
+                    "error_type": "missing_dependency"
+                }
+
+        # Check for permission errors
+        if "PermissionError" in stderr:
+            return {
+                "needs_fix": True,
+                "suggested_fix": "chmod +x and run with proper permissions",
+                "error_type": "permission_error"
+            }
+
+        # Default: no automated fix available
+        return {
+            "needs_fix": False,
+            "suggested_fix": "",
+            "error_type": "unknown"
+        }
+
+    def _apply_fix(self, fix_command: str) -> bool:
+        """
+        Apply suggested fix command (Linux-optimized)
+        Args:
+            fix_command: Command to apply
+        Returns:
+            Success status
+        """
+        try:
+            # Execute the fix command in the current environment
+            result = subprocess.run(
+                fix_command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout for installations
+            )
+
+            success = result.returncode == 0
+            if success:
+                console.print(f"[green]修复命令执行成功: {fix_command}[/green]")
+            else:
+                console.print(f"[yellow]修复命令执行失败: {result.stderr}[/yellow]")
+
+            return success
+        except subprocess.TimeoutExpired:
+            console.print(f"[red]修复命令超时: {fix_command}[/red]")
+            return False
+        except Exception as e:
+            console.print(f"[red]执行修复命令时出错: {e}[/red]")
+            return False
 
     def analyze_error_and_fix(self, error_message: str) -> Dict[str, Any]:
         """

@@ -55,7 +55,9 @@ class Coder:
 
         if self.coder_config['client']:
             raw_response = call_llm(self.coder_config, prompt)
-            code_output = clean_json_text(raw_response)
+
+            # Extract code from response, removing any non-code content
+            code_output = self._extract_code_from_response(raw_response)
 
             # Parse the code output using safe parser
             code_data = safe_json_parse(code_output, {})
@@ -149,6 +151,62 @@ class Coder:
         """
         # Simple extraction - in a real implementation, this would parse the design doc properly
         return f"Based on design: {len(design_document)} chars"
+
+    def _extract_code_from_response(self, raw_response: str) -> str:
+        """
+        Extract code content from AI response, removing any non-code text
+        Args:
+            raw_response: Raw response from AI
+        Returns:
+            Cleaned code content suitable for JSON parsing
+        """
+        import re
+
+        # First, clean the JSON text
+        cleaned = clean_json_text(raw_response)
+
+        # If the response contains markdown code blocks, extract the content
+        # Look for JSON blocks in the response
+        json_match = re.search(r'```(?:json)?\s*({.*?})\s*```', cleaned, re.DOTALL | re.IGNORECASE)
+        if json_match:
+            return json_match.group(1)
+
+        # Look for JSON structure between curly braces
+        # Find the outermost JSON structure
+        brace_count = 0
+        start_idx = -1
+        end_idx = -1
+
+        for i, char in enumerate(cleaned):
+            if char == '{':
+                if brace_count == 0:
+                    start_idx = i
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0 and start_idx != -1:
+                    end_idx = i
+                    break
+
+        if start_idx != -1 and end_idx != -1:
+            json_content = cleaned[start_idx:end_idx+1]
+            return json_content
+
+        # If there are Chinese characters that shouldn't be in code, remove them
+        # This is a heuristic to detect if the response contains non-code content
+        chinese_char_pattern = r'[^\x00-\x7F\u4e00-\u9fff{}[\]:,""\\\-0-9.a-zA-Z\s\n\t]'
+        cleaned = re.sub(chinese_char_pattern, '', cleaned)
+
+        # Try to find a JSON-like structure in the cleaned text
+        json_start = cleaned.find('{')
+        json_end = cleaned.rfind('}')
+
+        if json_start != -1 and json_end != -1 and json_end > json_start:
+            json_content = cleaned[json_start:json_end+1]
+            return json_content
+        else:
+            # If no JSON structure found, return the cleaned text
+            return cleaned
 
     def save_code_files(self, files_data: list) -> list:
         """

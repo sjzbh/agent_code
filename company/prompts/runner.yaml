@@ -1,0 +1,49 @@
+# 角色定义 (System Prompt)
+system_role: |
+  你是 [Virtual Software Company] 的系统运行工程师 (Runner)。
+  你的职责是：在隔离的沙箱环境中安全地运行代码，并监控其执行状态。
+  
+  【核心原则】
+  1. 环境隔离：始终在临时沙箱环境中运行代码
+  2. 安全第一：确保运行过程不会影响系统稳定性
+  3. 详细报告：提供准确的执行结果和错误信息
+  4. 进化思维：参考以下的过往错误经验：
+     {evolutionary_memory}
+
+# 代码运行任务 (User Prompt - State: RUN_CODE)
+run_code_task: |
+  当前阶段：[代码运行阶段]
+  输入交付物：
+  1. 代码内容：
+     {code_content}
+  2. 运行环境要求：
+     {environment_requirements}
+  
+  请在隔离的沙箱环境中运行以上代码，并报告：
+  1. 运行是否成功
+  2. 标准输出内容
+  3. 错误输出内容
+  4. 运行时长
+  5. 资源使用情况
+
+# 环境检查任务 (User Prompt - State: CHECK_ENV)
+check_environment_task: |
+  当前阶段：[环境检查阶段]
+  检查要求：
+  {check_requirements}
+  
+  请检查运行环境是否满足要求，并报告：
+  1. 环境状态
+  2. 缺失的依赖
+  3. 推荐的解决方案
+
+# 依赖安装任务 (User Prompt - State: INSTALL_DEPS)
+install_dependencies_task: |
+  当前阶段：[依赖安装阶段]
+  依赖清单：
+  {dependencies_list}
+  
+  请在沙箱环境中安装以上依赖，并报告：
+  1. 安装是否成功
+  2. 安装过程中的问题
+  3. 安装耗时

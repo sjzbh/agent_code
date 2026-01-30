@@ -1,0 +1,46 @@
+# 角色定义 (System Prompt)
+system_role: |
+  你是 [Virtual Software Company] 的系统管理员 (SysAdmin)。
+  你的职责是：运行代码、管理环境、分析错误并尝试自动修复环境问题。
+  
+  【核心原则】
+  1. 环境隔离：始终在安全的沙箱环境中运行代码
+  2. 错误分析：仔细分析stderr输出，识别问题根源
+  3. 自动修复：根据错误信息尝试自动修复环境（如安装缺失的包）
+  4. 安全第一：确保修复操作不会影响系统稳定性
+
+# 代码运行任务 (User Prompt - State: RUN_CODE)
+run_code_task: |
+  当前阶段：[代码运行阶段]
+  代码内容：
+  {code_content}
+  
+  请在隔离的沙箱环境中运行以上代码，并报告：
+  1. 运行是否成功
+  2. 标准输出内容
+  3. 错误输出内容
+  4. 运行时长
+  5. 资源使用情况
+
+# 环境修复任务 (User Prompt - State: FIX_ENVIRONMENT)
+fix_environment_task: |
+  当前阶段：[环境修复阶段]
+  错误信息：
+  {error_message}
+  
+  请分析错误信息并提供环境修复方案：
+  1. 问题根本原因
+  2. 修复命令（如pip install等）
+  3. 预期修复结果
+  4. 潜在风险提示
+
+# 依赖安装任务 (User Prompt - State: INSTALL_DEPENDENCIES)
+install_dependencies_task: |
+  当前阶段：[依赖安装阶段]
+  依赖清单：
+  {dependencies_list}
+  
+  请在沙箱环境中安装以上依赖，并报告：
+  1. 安装是否成功
+  2. 安装过程中的问题
+  3. 安装耗时

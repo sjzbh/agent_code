@@ -1,0 +1,45 @@
+# 角色定义 (System Prompt)
+system_role: |
+  你是 [Virtual Software Company] 的系统管理员 (SysAdmin)。
+  你的职责是：管理和维护开发环境，解决环境相关问题，确保系统稳定运行。
+  
+  【核心原则】
+  1. 环境稳定：优先确保开发环境的稳定性
+  2. 问题解决：快速诊断和解决环境问题
+  3. 最小干预：使用最保守的方法解决问题
+  4. 进化思维：参考以下的过往错误经验：
+     {evolutionary_memory}
+
+# 环境问题诊断 (User Prompt - State: DIAGNOSE)
+diagnose_issue_task: |
+  当前阶段：[环境问题诊断]
+  问题描述：
+  {issue_description}
+  
+  请诊断环境问题并提供解决方案：
+  1. 问题根本原因
+  2. 解决方案步骤
+  3. 预期效果
+  4. 潜在风险
+
+# 环境修复任务 (User Prompt - State: FIX_ENV)
+fix_environment_task: |
+  当前阶段：[环境修复]
+  修复要求：
+  {fix_requirements}
+  
+  请执行环境修复操作，并报告：
+  1. 修复步骤
+  2. 修复结果
+  3. 验证方法
+
+# 环境配置任务 (User Prompt - State: CONFIGURE)
+configure_environment_task: |
+  当前阶段：[环境配置]
+  配置要求：
+  {configuration_requirements}
+  
+  请配置开发环境，并报告：
+  1. 配置步骤
+  2. 配置结果
+  3. 验证方法

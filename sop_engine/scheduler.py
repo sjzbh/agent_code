@@ -12,17 +12,23 @@ from roles.architect import Architect
 from roles.coder import Coder
 from roles.techlead import TechLead
 from roles.qa_engineer import QAEngineer
-from company.runner import Runner
-from company.auditor import AuditorAgent
+from roles.project_manager import ProjectManager
+from roles.auditor import Auditor
+from roles.sysadmin import SysAdmin
+from roles.evolution_officer import EvolutionOfficer
 
 class CompanyStage(Enum):
     """Company workflow stages"""
     PM_REQUIREMENTS = "pm_requirements"
+    PM_ANALYSIS = "pm_analysis"
     ARCHITECT_DESIGN = "architect_design"
     CODER_IMPLEMENTATION = "coder_implementation"
     TECHLEAD_REVIEW = "techlead_review"
+    RUNNER_EXECUTION = "runner_execution"
+    SYSADMIN_ENVIRONMENT = "sysadmin_environment"
     QA_TESTING = "qa_testing"
     AUDITOR_ACCEPTANCE = "auditor_acceptance"
+    EVOLUTION_ANALYSIS = "evolution_analysis"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -43,12 +49,15 @@ class SOPScheduler:
     """SOP State Graph Scheduler - manages the workflow between different roles"""
 
     def __init__(self):
+        self.project_manager = ProjectManager()
         self.architect = Architect()
         self.coder = Coder()
         self.techlead = TechLead()
         self.qa_engineer = QAEngineer()
-        self.runner = Runner()
-        self.auditor = AuditorAgent()
+        self.runner = SysAdmin()  # Using SysAdmin for both running and environment management
+        self.auditor = Auditor()
+        self.sysadmin = SysAdmin()
+        self.evolution_officer = EvolutionOfficer()
 
         # Initialize workflow state
         self.state = WorkflowState(stage=CompanyStage.PM_REQUIREMENTS)
@@ -56,11 +65,15 @@ class SOPScheduler:
         # Define the workflow graph
         self.workflow_graph = {
             CompanyStage.PM_REQUIREMENTS: self._process_pm_requirements,
+            CompanyStage.PM_ANALYSIS: self._process_pm_analysis,
             CompanyStage.ARCHITECT_DESIGN: self._process_architect_design,
             CompanyStage.CODER_IMPLEMENTATION: self._process_coder_implementation,
             CompanyStage.TECHLEAD_REVIEW: self._process_techlead_review,
+            CompanyStage.RUNNER_EXECUTION: self._process_runner_execution,
+            CompanyStage.SYSADMIN_ENVIRONMENT: self._process_sysadmin_environment,
             CompanyStage.QA_TESTING: self._process_qa_testing,
-            CompanyStage.AUDITOR_ACCEPTANCE: self._process_auditor_acceptance
+            CompanyStage.AUDITOR_ACCEPTANCE: self._process_auditor_acceptance,
+            CompanyStage.EVOLUTION_ANALYSIS: self._process_evolution_analysis
         }
 
     def execute_workflow(self, user_requirement: str) -> WorkflowState:
@@ -69,9 +82,12 @@ class SOPScheduler:
 
         # Execute each stage in sequence
         stages_order = [
+            CompanyStage.PM_ANALYSIS,
             CompanyStage.ARCHITECT_DESIGN,
             CompanyStage.CODER_IMPLEMENTATION,
             CompanyStage.TECHLEAD_REVIEW,
+            CompanyStage.RUNNER_EXECUTION,
+            CompanyStage.SYSADMIN_ENVIRONMENT,
             CompanyStage.QA_TESTING,
             CompanyStage.AUDITOR_ACCEPTANCE
         ]
@@ -85,6 +101,8 @@ class SOPScheduler:
 
             if not success:
                 self.state.stage = CompanyStage.FAILED
+                # Trigger evolution officer to analyze failure
+                self._trigger_evolution_analysis()
                 return self.state
 
             # Check if we need to loop back due to review rejection
@@ -97,10 +115,37 @@ class SOPScheduler:
                     success = self._execute_stage(CompanyStage.CODER_IMPLEMENTATION)
                     if not success:
                         self.state.stage = CompanyStage.FAILED
+                        # Trigger evolution officer to analyze failure
+                        self._trigger_evolution_analysis()
                         return self.state
+
+        self.state.stage = CompanyStage.EVOLUTION_ANALYSIS
+        # Trigger evolution officer to analyze successful completion
+        self._trigger_evolution_analysis()
 
         self.state.stage = CompanyStage.COMPLETED
         return self.state
+
+    def _trigger_evolution_analysis(self):
+        """Trigger evolution officer to analyze the execution log"""
+        # Create a summary of the execution log
+        execution_log = f"""
+        项目执行日志:
+        - 需求: {self.state.user_requirement}
+        - 设计文档: {self.state.design_document[:100] if self.state.design_document else 'N/A'}
+        - 实现代码: {self.state.implementation[:100] if self.state.implementation else 'N/A'}
+        - 审查反馈: {self.state.review_feedback}
+        - 测试结果: {self.state.test_results}
+        - 验收结果: {self.state.acceptance_result}
+        - 错误信息: {self.state.error_message}
+        - 最终状态: {self.state.stage.value}
+        """
+
+        # Trigger the evolution officer to analyze and store insights
+        self.evolution_officer.trigger_post_project_analysis(
+            execution_log=execution_log,
+            project_context=self.state.user_requirement
+        )
 
     def _execute_stage(self, stage: CompanyStage) -> bool:
         """Execute a single stage"""
@@ -120,6 +165,43 @@ class SOPScheduler:
         """Process PM requirements stage"""
         # This stage just sets up the initial requirement
         console.print(f"[green]已接收需求: {self.state.user_requirement}[/green]")
+        return True
+
+    def _process_pm_analysis(self) -> bool:
+        """Process PM analysis stage - convert user requirements to structured PRD"""
+        console.print("[bold yellow]执行阶段: PM需求分析[/bold yellow]")
+
+        # Use the project manager to clarify requirements and generate PRD
+        clarification_result = self.project_manager.clarify_requirements(self.state.user_requirement)
+
+        if clarification_result.get('needs_clarification', False):
+            # If requirements need clarification, we'll assume they were clarified for this demo
+            # In a real implementation, this would involve user interaction
+            console.print("[yellow]需求需要澄清，使用原始需求继续...[/yellow]")
+            prd_result = self.project_manager.generate_prd(self.state.user_requirement)
+        else:
+            # Generate PRD from clear requirements
+            prd_result = self.project_manager.generate_prd(clarification_result.get('clear_requirement', self.state.user_requirement))
+
+        if prd_result['success']:
+            self.state.user_requirement = prd_result['prd_document'].get('product_overview', self.state.user_requirement)
+            if not self.state.artifacts:
+                self.state.artifacts = {}
+            self.state.artifacts.update({
+                'prd_document': prd_result['prd_document']
+            })
+            console.print("[green]PM需求分析完成，PRD生成成功[/green]")
+            return True
+        else:
+            console.print(f"[red]PRD生成失败: {prd_result.get('error', 'Unknown error')}[/red]")
+            return False
+
+    def _process_evolution_analysis(self) -> bool:
+        """Process evolution analysis stage - analyze execution log and store insights"""
+        console.print("[bold yellow]执行阶段: 进化分析[/bold yellow]")
+
+        # This stage is handled by the _trigger_evolution_analysis method
+        # which is called after successful completion or failure
         return True
 
     def _process_architect_design(self) -> bool:
@@ -196,6 +278,49 @@ class SOPScheduler:
                 return True
         else:
             console.print(f"[red]代码审查失败: {review_result.get('error', 'Unknown error')}[/red]")
+            return False
+
+    def _process_runner_execution(self) -> bool:
+        """Process runner execution stage"""
+        console.print("[bold yellow]执行阶段: 代码运行[/bold yellow]")
+
+        # Run the implementation code in a sandbox environment
+        run_result = self.runner.run_code_with_monitoring(
+            code_content=self.state.implementation,
+            environment_requirements="Standard Python environment"
+        )
+
+        if not self.state.artifacts:
+            self.state.artifacts = {}
+        self.state.artifacts.update({
+            'run_result': run_result
+        })
+
+        if run_result['success']:
+            console.print("[green]代码运行成功[/green]")
+            return True
+        else:
+            console.print(f"[red]代码运行失败: {run_result.get('stderr', 'Unknown error')}[/red]")
+            return False
+
+    def _process_sysadmin_environment(self) -> bool:
+        """Process sysadmin environment stage"""
+        console.print("[bold yellow]执行阶段: 环境管理[/bold yellow]")
+
+        # Check environment health and ensure everything is properly configured
+        health_result = self.sysadmin.check_system_health()
+
+        if not self.state.artifacts:
+            self.state.artifacts = {}
+        self.state.artifacts.update({
+            'health_check': health_result
+        })
+
+        if health_result['success']:
+            console.print("[green]环境检查通过[/green]")
+            return True
+        else:
+            console.print(f"[red]环境检查失败: {health_result.get('error', 'Unknown error')}[/red]")
             return False
 
     def _process_qa_testing(self) -> bool:

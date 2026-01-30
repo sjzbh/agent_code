@@ -5,7 +5,7 @@ import json
 import os
 from typing import Dict, Any
 from config import settings, ai_client_manager
-from utils import clean_json_text, call_llm, load_prompt
+from utils import clean_json_text, call_llm, load_prompt, safe_json_parse
 from rich.console import Console
 from memory.evolutionary_memory import evolutionary_memory
 
@@ -52,27 +52,18 @@ class Architect:
             raw_response = call_llm(self.architect_config, prompt)
             design_doc = clean_json_text(raw_response)
 
-            # Parse the design document
-            try:
-                design_data = json.loads(design_doc)
-                console.print("[bold green]系统设计完成！[/bold green]")
+            # Parse the design document using safe parser
+            design_data = safe_json_parse(design_doc, {})
+            console.print("[bold green]系统设计完成！[/bold green]")
 
-                # Save design document
-                self.save_design_document(design_data, "design.md")
+            # Save design document
+            self.save_design_document(design_data, "design.md")
 
-                return {
-                    "success": True,
-                    "design_document": design_data,
-                    "design_md": design_doc
-                }
-            except json.JSONDecodeError:
-                console.print("[bold red]设计文档解析失败，返回原始内容[/bold red]")
-                return {
-                    "success": False,
-                    "design_document": {},
-                    "design_md": design_doc,
-                    "error": "设计文档解析失败"
-                }
+            return {
+                "success": True,
+                "design_document": design_data,
+                "design_md": design_doc
+            }
         else:
             console.print("[bold red]错误: Architect AI 未初始化[/bold red]")
             return {

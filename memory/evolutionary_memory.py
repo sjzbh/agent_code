@@ -105,28 +105,42 @@ class EvolutionaryMemory:
         """Get known patterns"""
         return self.knowledge_base["patterns"]
     
+    def add_error_solution_pair(self, error: str, solution: str, context: str = ""):
+        """Add an error-solution pair to the knowledge base"""
+        entry = {
+            "error": error,
+            "solution": solution,
+            "context": context,
+            "timestamp": datetime.now().isoformat(),
+            "id": len(self.knowledge_base["errors"])
+        }
+
+        self.knowledge_base["errors"].append(entry)
+        console.print(f"[green]错误解决方案已记录: {error[:50]}...[/green]")
+        self.save_knowledge_base()
+
     def apply_solutions(self, error_context: str) -> List[str]:
         """Apply relevant solutions based on error context"""
         solutions = []
-        
+
         # Search for similar errors
         error_matches = self.search_by_error(error_context)
         for match in error_matches:
             solutions.append(match["solution"])
-        
+
         # Search by context
         context_matches = self.search_by_context(error_context)
         for match in context_matches:
             if match["solution"] not in solutions:
                 solutions.append(match["solution"])
-        
+
         # Add common solutions that might be relevant
         for solution_entry in self.get_common_solutions():
             if "linux" in error_context.lower() and "linux" in solution_entry.get("description", "").lower():
                 solutions.append(solution_entry["solution"])
             elif "python" in error_context.lower() and "python" in solution_entry.get("description", "").lower():
                 solutions.append(solution_entry["solution"])
-        
+
         return solutions
 
 # Global instance

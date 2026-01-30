@@ -5,7 +5,7 @@ import json
 import os
 from typing import Dict, Any
 from config import settings, ai_client_manager
-from utils import clean_json_text, call_llm, load_prompt
+from utils import clean_json_text, call_llm, load_prompt, safe_json_parse
 from rich.console import Console
 from memory.evolutionary_memory import evolutionary_memory
 
@@ -56,33 +56,21 @@ class QAEngineer:
             raw_response = call_llm(self.qa_config, prompt)
             test_output = clean_json_text(raw_response)
 
-            # Parse the test output
-            try:
-                test_data = json.loads(test_output)
-                console.print("[bold green]测试用例创建完成！[/bold green]")
+            # Parse the test output using safe parser
+            test_data = safe_json_parse(test_output, {})
+            console.print("[bold green]测试用例创建完成！[/bold green]")
 
-                # Save test files
-                test_files_created = self.save_test_files(test_data.get('test_files', []))
+            # Save test files
+            test_files_created = self.save_test_files(test_data.get('test_files', []))
 
-                return {
-                    "success": True,
-                    "test_cases": test_data.get('test_cases', []),
-                    "test_strategy": test_data.get('test_strategy', {}),
-                    "test_files": test_data.get('test_files', []),
-                    "test_files_created": test_files_created,
-                    "raw_output": test_output
-                }
-            except json.JSONDecodeError:
-                console.print("[bold red]测试输出解析失败，返回原始内容[/bold red]")
-                return {
-                    "success": False,
-                    "test_cases": [],
-                    "test_strategy": {},
-                    "test_files": [],
-                    "test_files_created": [],
-                    "raw_output": test_output,
-                    "error": "测试输出解析失败"
-                }
+            return {
+                "success": True,
+                "test_cases": test_data.get('test_cases', []),
+                "test_strategy": test_data.get('test_strategy', {}),
+                "test_files": test_data.get('test_files', []),
+                "test_files_created": test_files_created,
+                "raw_output": test_output
+            }
         else:
             console.print("[bold red]错误: QA Engineer AI 未初始化[/bold red]")
             return {

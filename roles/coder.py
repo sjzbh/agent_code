@@ -5,7 +5,7 @@ import json
 import os
 from typing import Dict, Any
 from config import settings, ai_client_manager
-from utils import clean_json_text, call_llm, load_prompt
+from utils import clean_json_text, call_llm, load_prompt, safe_json_parse
 from rich.console import Console
 from memory.evolutionary_memory import evolutionary_memory
 
@@ -57,29 +57,19 @@ class Coder:
             raw_response = call_llm(self.coder_config, prompt)
             code_output = clean_json_text(raw_response)
 
-            # Parse the code output
-            try:
-                code_data = json.loads(code_output)
-                console.print("[bold green]代码实现完成！[/bold green]")
+            # Parse the code output using safe parser
+            code_data = safe_json_parse(code_output, {})
+            console.print("[bold green]代码实现完成！[/bold green]")
 
-                # Save code files
-                files_created = self.save_code_files(code_data.get('files', []))
+            # Save code files
+            files_created = self.save_code_files(code_data.get('files', []))
 
-                return {
-                    "success": True,
-                    "code_files": code_data.get('files', []),
-                    "files_created": files_created,
-                    "raw_output": code_output
-                }
-            except json.JSONDecodeError:
-                console.print("[bold red]代码输出解析失败，返回原始内容[/bold red]")
-                return {
-                    "success": False,
-                    "code_files": [],
-                    "files_created": [],
-                    "raw_output": code_output,
-                    "error": "代码输出解析失败"
-                }
+            return {
+                "success": True,
+                "code_files": code_data.get('files', []),
+                "files_created": files_created,
+                "raw_output": code_output
+            }
         else:
             console.print("[bold red]错误: Coder AI 未初始化[/bold red]")
             return {

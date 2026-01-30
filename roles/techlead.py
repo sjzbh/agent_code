@@ -4,7 +4,7 @@ TechLead Role - Responsible for code review and quality assurance
 import json
 from typing import Dict, Any
 from config import settings, ai_client_manager
-from utils import clean_json_text, call_llm, load_prompt
+from utils import clean_json_text, call_llm, load_prompt, safe_json_parse
 from rich.console import Console
 from memory.evolutionary_memory import evolutionary_memory
 
@@ -55,36 +55,25 @@ class TechLead:
             raw_response = call_llm(self.techlead_config, prompt)
             review_result = clean_json_text(raw_response)
 
-            # Parse the review result
-            try:
-                review_data = json.loads(review_result)
-                console.print("[bold green]代码审查完成！[/bold green]")
+            # Parse the review result using safe parser
+            review_data = safe_json_parse(review_result, {})
+            console.print("[bold green]代码审查完成！[/bold green]")
 
-                # Determine if code is approved
-                approved = review_data.get('approved', False)
+            # Determine if code is approved
+            approved = review_data.get('approved', False)
 
-                if approved:
-                    console.print("[bold green]代码审查通过！[/bold green]")
-                else:
-                    console.print("[bold yellow]代码需要修改！[/bold yellow]")
+            if approved:
+                console.print("[bold green]代码审查通过！[/bold green]")
+            else:
+                console.print("[bold yellow]代码需要修改！[/bold yellow]")
 
-                return {
-                    "approved": approved,
-                    "feedback": review_data.get('feedback', ''),
-                    "issues": review_data.get('issues', []),
-                    "suggestions": review_data.get('suggestions', []),
-                    "review_raw": review_result
-                }
-            except json.JSONDecodeError:
-                console.print("[bold red]审查结果解析失败，返回原始内容[/bold red]")
-                return {
-                    "approved": False,
-                    "feedback": "审查结果解析失败",
-                    "issues": [],
-                    "suggestions": [],
-                    "review_raw": review_result,
-                    "error": "审查结果解析失败"
-                }
+            return {
+                "approved": approved,
+                "feedback": review_data.get('feedback', ''),
+                "issues": review_data.get('issues', []),
+                "suggestions": review_data.get('suggestions', []),
+                "review_raw": review_result
+            }
         else:
             console.print("[bold red]错误: TechLead AI 未初始化[/bold red]")
             return {
